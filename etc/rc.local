@@ -1,0 +1,7 @@
+# Put your custom commands here that should be executed once
+# the system init finished. By default this file does nothing.
+
+sleep 10
+/etc/init.d/listen_api restart
+/etc/init.d/vpn_watchdog restart
+exit 0
