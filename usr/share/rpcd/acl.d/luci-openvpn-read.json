@@ -1,0 +1,13 @@
+{
+        "luci-openvpn-read": {
+                "description": "Grant web UI read access to OpenVPN configs",
+                "read": {
+                        "ubus": {
+                                "file": [ "read" ]
+                        },
+                        "file": {
+                                "/etc/openvpn/*": [ "read" ]
+                        }
+                }
+        }
+}
