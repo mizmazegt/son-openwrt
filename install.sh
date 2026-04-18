@@ -16,7 +16,7 @@ usr/share/rpcd/acl.d/luci-openvpn-read.json
 usr/bin/listen_api.sh
 "
 
-echo "Bắt đầu tải và thiết lập cấu hình bằng CURL..."
+echo "Bắt đầu tải và thiết lập cấu hình bằng WGET..."
 
 # Biến đếm số file thành công
 SUCCESS_COUNT=0
@@ -28,15 +28,13 @@ for file in $FILES; do
     
     echo "- Đang xử lý: /$file"
     
-    # Dùng curl thay cho wget:
-    # -s: silent (không hiện thanh tiến trình tải)
-    # -L: follow redirects (chuyển hướng link nếu có)
-    # -f: fail silently on HTTP errors (trả về lỗi nếu file 404)
-    # -o: output ra file đích
-    curl -sLf -o "/$file" "$REPO_URL/$file"
+    # Dùng wget (đã hỗ trợ SSL):
+    # -q: im lặng, không in log rác
+    # -O: xuất ra file đích
+    wget -q -O "/$file" "$REPO_URL/$file"
     
-    # Kiểm tra mã lỗi trả về của curl ($?)
-    if [ $? -eq 0 ]; then
+    # Kiểm tra wget chạy thành công (mã 0) VÀ file không bị rỗng (-s)
+    if [ $? -eq 0 ] && [ -s "/$file" ]; then
         echo "  -> Tải thành công!"
         SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
         
@@ -49,7 +47,9 @@ for file in $FILES; do
                 ;;
         esac
     else
-        echo "  -> [LỖI] Không thể tải file này! (Kiểm tra lại link hoặc file có tồn tại trên GitHub không)"
+        echo "  -> [LỖI] Không thể tải file này! (Xóa file lỗi nếu có)"
+        # Xóa file trắng/lỗi do wget lỡ tạo ra để tránh rác hệ thống
+        rm -f "/$file"
     fi
 done
 
