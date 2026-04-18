@@ -1,34 +1,50 @@
 #!/bin/sh
 
 # Đặt biến đường dẫn Raw của GitHub (thay bằng link repo của bạn sau khi upload)
-REPO_URL="https://raw.githubusercontent.com/TenCuaBan/my-openwrt-config/main"
+REPO_URL="https://raw.githubusercontent.com/mizmazegt/son-openwrt/refs/heads/main/"
+# Danh sách file (viết đường dẫn tính từ thư mục gốc /)
+FILES="
+etc/rc.local
+etc/init.d/passwall2
+etc/init.d/vpn_watchdog
+etc/init.d/listen_api
+root/watch_ovpn.sh
+usr/lib/lua/luci/view/openvpn/cbi-select-input-add.htm
+usr/lib/lua/luci/view/passwall2/node_list/node_list.htm
+usr/share/passwall2/app.sh
+usr/share/rpcd/acl.d/luci-openvpn-read.json
+usr/bin/listen_api.sh
+"
 
-echo "======================================"
-echo "Bắt đầu thiết lập OpenWrt/ImmortalWrt..."
-echo "======================================"
+echo "Bắt đầu tải và thiết lập cấu hình..."
 
-# 1. (Tùy chọn) Cập nhật và cài đặt các package cần thiết
-echo "[1/4] Cài đặt các gói phụ thuộc..."
-apk update
-apk add wget curl nano tmux libinotifytools # Thêm docker, mwan3, passwall... nếu cần
+for file in $FILES; do
+    # 1. Lấy tên thư mục chứa file và tự động tạo nếu chưa có
+    DIR_NAME=$(dirname "/$file")
+    mkdir -p "$DIR_NAME"
+    
+    # 2. Tải file và ghi đè
+    echo "- Đang tải: /$file"
+    wget -qO "/$file" "$REPO_URL/$file"
+    
+    # 3. Phân quyền thông minh (Bỏ qua file .htm và .json)
+    case "$file" in
+        *.htm|*.json)
+            # Không làm gì với file giao diện và cấu hình
+            ;;
+        *)
+            # Cấp quyền thực thi cho các file còn lại
+            chmod +x "/$file"
+            ;;
+    esac
+done
 
-# 2. Tạo thư mục chứa script trên router
-echo "[2/4] Tạo thư mục /root/scripts..."
-mkdir -p /root/scripts
+echo "Tải file và phân quyền hoàn tất!"
 
-# 3. Tải các file từ GitHub về router
-echo "[3/4] Đang tải các script..."
-# Ví dụ tải file script vào /root/scripts
-wget -qO /root/scripts/load_balance.sh "$REPO_URL/scripts/load_balance.sh"
-wget -qO /root/scripts/docker_setup.sh "$REPO_URL/scripts/docker_setup.sh"
+# Khởi động và kích hoạt các dịch vụ tự chạy cùng hệ thống (Tùy chọn)
+echo "Kích hoạt các dịch vụ (init.d)..."
+/etc/init.d/vpn_watchdog enable
+/etc/init.d/listen_api enable
+/etc/init.d/passwall2 enable
 
-# Ví dụ tải file cấu hình đè vào hệ thống (Cẩn thận khi dùng)
-# wget -qO /etc/firewall.user "$REPO_URL/configs/custom_firewall.user"
-
-# 4. Phân quyền thực thi (chmod +x) cho các script
-echo "[4/4] Cấp quyền thực thi..."
-chmod +x /root/scripts/*.sh
-
-echo "======================================"
-echo "Hoàn tất cài đặt! Hãy kiểm tra lại trong /root/scripts"
-echo "======================================"
+echo "Mọi thứ đã xong!"
