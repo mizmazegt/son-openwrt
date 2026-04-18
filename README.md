@@ -1,1 +1,1 @@
-wget -qO- https://raw.githubusercontent.com/TenCuaBan/my-openwrt-config/main/install.sh | sh
+wget -qO- https://raw.githubusercontent.com/mizmazegt/son-openwrt/refs/heads/main/ | sh
