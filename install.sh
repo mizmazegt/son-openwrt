@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # Đổi URL này cho đúng repo của bạn
-REPO_URL="https://raw.githubusercontent.com/mizmazegt/son-openwrt/main"
+REPO_URL="https://raw.githubusercontent.com/mizmazegt/son-openwrt/refs/heads/main"
 
 FILES="
 etc/rc.local
