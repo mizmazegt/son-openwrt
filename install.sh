@@ -1,5 +1,12 @@
 #!/bin/sh
 
+echo "========================================="
+echo "1. Đang chuẩn bị môi trường..."
+echo "========================================="
+# Cập nhật danh sách gói và cài đặt wget-ssl + chứng chỉ bảo mật
+apk update
+apk add wget-ssl ca-certificates
+
 # Đổi URL này cho đúng repo của bạn
 REPO_URL="https://raw.githubusercontent.com/mizmazegt/son-openwrt/refs/heads/main"
 
