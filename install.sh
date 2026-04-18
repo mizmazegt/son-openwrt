@@ -59,6 +59,6 @@ echo "========================================="
 
 # Kích hoạt các dịch vụ (init.d)
 echo "Kích hoạt các dịch vụ tự chạy..."
-/etc/init.d/vpn_watchdog enable 2>/dev/null
-/etc/init.d/listen_api enable 2>/dev/null
-/etc/init.d/passwall2 enable 2>/dev/null
+/etc/init.d/vpn_watchdog enable
+/etc/init.d/listen_api enable
+/etc/init.d/passwall2 enable
