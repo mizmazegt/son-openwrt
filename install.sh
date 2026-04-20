@@ -1,8 +1,15 @@
 #!/bin/sh
 
-# Đặt biến đường dẫn Raw của GitHub (thay bằng link repo của bạn sau khi upload)
-REPO_URL="https://raw.githubusercontent.com/mizmazegt/son-openwrt/refs/heads/main/"
-# Danh sách file (viết đường dẫn tính từ thư mục gốc /)
+echo "========================================="
+echo "1. Đang chuẩn bị môi trường..."
+echo "========================================="
+# Cập nhật danh sách gói và cài đặt wget-ssl + chứng chỉ bảo mật
+apk update
+apk add wget-ssl ca-certificates
+
+# Đổi URL này cho đúng repo của bạn
+REPO_URL="https://raw.githubusercontent.com/mizmazegt/son-openwrt/refs/heads/main"
+
 FILES="
 etc/rc.local
 etc/init.d/passwall2
@@ -17,35 +24,48 @@ usr/share/rpcd/acl.d/luci-openvpn-read.json
 usr/bin/listen_api.sh
 "
 
-echo "Bắt đầu tải và thiết lập cấu hình..."
+echo "Bắt đầu tải và thiết lập cấu hình bằng WGET..."
+
+# Biến đếm số file thành công
+SUCCESS_COUNT=0
 
 for file in $FILES; do
-    # 1. Lấy tên thư mục chứa file và tự động tạo nếu chưa có
+    # Tạo thư mục nếu chưa có
     DIR_NAME=$(dirname "/$file")
     mkdir -p "$DIR_NAME"
     
-    # 2. Tải file và ghi đè
-    echo "- Đang tải: /$file"
-    wget -qO "/$file" "$REPO_URL/$file"
+    echo "- Đang xử lý: /$file"
     
-    # 3. Phân quyền thông minh (Bỏ qua file .htm và .json)
-    case "$file" in
-        *.htm|*.json)
-            # Không làm gì với file giao diện và cấu hình
-            ;;
-        *)
-            # Cấp quyền thực thi cho các file còn lại
-            chmod +x "/$file"
-            ;;
-    esac
+    # Dùng wget (đã hỗ trợ SSL):
+    # -q: im lặng, không in log rác
+    # -O: xuất ra file đích
+    wget -q -O "/$file" "$REPO_URL/$file"
+    
+    # Kiểm tra wget chạy thành công (mã 0) VÀ file không bị rỗng (-s)
+    if [ $? -eq 0 ] && [ -s "/$file" ]; then
+        echo "  -> Tải thành công!"
+        SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+        
+        # Phân quyền thông minh (Bỏ qua file .htm và .json)
+        case "$file" in
+            *.htm|*.json)
+                ;;
+            *)
+                chmod +x "/$file"
+                ;;
+        esac
+    else
+        echo "  -> [LỖI] Không thể tải file này! (Xóa file lỗi nếu có)"
+        # Xóa file trắng/lỗi do wget lỡ tạo ra để tránh rác hệ thống
+        rm -f "/$file"
+    fi
 done
 
-echo "Tải file và phân quyền hoàn tất!"
+echo "========================================="
+echo "Hoàn tất! Đã tải thành công: $SUCCESS_COUNT file."
+echo "========================================="
 
-# Khởi động và kích hoạt các dịch vụ tự chạy cùng hệ thống (Tùy chọn)
-echo "Kích hoạt các dịch vụ (init.d)..."
+# Kích hoạt các dịch vụ (init.d)
+echo "Kích hoạt các dịch vụ tự chạy..."
 /etc/init.d/vpn_watchdog enable
 /etc/init.d/listen_api enable
-/etc/init.d/passwall2 enable
-
-echo "Mọi thứ đã xong!"
