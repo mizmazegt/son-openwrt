@@ -1,4 +1,3 @@
-
 <script>
 	function vpn_add()
 	{
@@ -106,76 +105,129 @@
 	<div class="vpn-output">
 		<span id="vpn_output"></span>
 	</div>
+
+    <div style="margin-top: 15px; margin-bottom: 5px; text-align: left;">
+        <input class="btn cbi-button cbi-button-add" type="button" value="Tai file IP dang chay" onclick="exportRunningIPs()" style="background-color: #28a745; color: white; border-color: #28a745; padding: 5px 15px; font-weight: bold;" title="Trích xuat danh sách IP cua OpenVPN dang chay" />
+    </div>
 </div>
 
 <script>
+// --- CH?C NANG 1: T? Ð?NG HI?N TH? IP C?NH TÊN TUN KHI LOAD TRANG ---
 document.addEventListener("DOMContentLoaded", function() {
-    // Tang th?i gian ch? lên 800ms d? d?m b?o LuCI load xong hoàn toàn
     setTimeout(function() {
-        if (!window.L || !L.env || !L.env.sessionid) {
-            console.warn("L?i: Không tìm th?y LuCI session.");
-            return;
-        }
-        console.log("B?t d?u quét các tr?ng thái OpenVPN...");
+        if (!window.L || !L.env || !L.env.sessionid) return;
 
         document.querySelectorAll('tr.cbi-section-table-row').forEach(function(row) {
-            var nameCell = row.querySelector('.cbi-value-field[data-name="config"] div');
             var activeCell = row.querySelector('.cbi-value-field[data-name="_active"] div');
+            var nameCell = row.querySelector('.cbi-value-field[data-name="config"] div');
+            
+            // L?y tên nguyên b?n t? data-title (R?t an toàn, không s? b? thay d?i do JS)
+            var tunName = row.getAttribute('data-title');
 
-            if (nameCell && activeCell && activeCell.textContent.includes('yes')) {
-                var tunName = "";
-                var targetNode = null;
-
-                for (var i = 0; i < nameCell.childNodes.length; i++) {
-                    if (nameCell.childNodes[i].nodeType === Node.TEXT_NODE) {
-                        var textContent = nameCell.childNodes[i].nodeValue.trim();
-                        if (textContent.length > 0) {
-                            tunName = textContent;
-                            targetNode = nameCell.childNodes[i];
-                            break;
-                        }
-                    }
-                }
-
-                if (tunName) {
-                    console.log("Ðang yêu c?u d?c file: /etc/openvpn/" + tunName + ".ovpn");
+            if (tunName && activeCell && activeCell.textContent.includes('yes') && nameCell) {
+                // Tìm dúng cái text node ch?a tên d? chèn IP vào
+                var targetNode = Array.from(nameCell.childNodes).find(n => n.nodeType === Node.TEXT_NODE && n.nodeValue.trim() !== "");
+                
+                if (targetNode) {
                     fetch('/ubus/', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            jsonrpc: '2.0',
-                            id: 1,
-                            method: 'call',
+                            jsonrpc: '2.0', id: 1, method: 'call',
                             params: [L.env.sessionid, 'file', 'read', { path: '/etc/openvpn/' + tunName + '.ovpn' }]
                         })
                     })
                     .then(res => res.json())
                     .then(data => {
-                        console.log("Ph?n h?i Ubus cho " + tunName + ":", data);
-                        
-                        // Ki?m tra n?u Ubus báo l?i bên trong payload
-                        if (data.error) {
-                            console.error("Ubus t? ch?i cho " + tunName + ". Mã l?i:", data.error.code);
-                            return;
-                        }
-
                         if (data && data.result && data.result[1] && data.result[1].data) {
-                            var fileContent = data.result[1].data;
-                            // C?i ti?n Regex: B? qua kho?ng tr?ng ? d?u dòng n?u có
-                            var match = fileContent.match(/^\s*remote\s+([^\s]+)/m);
-                            
+                            var match = data.result[1].data.match(/^\s*remote\s+([^\s]+)/m);
                             if (match && match[1]) {
-                                console.log("=> Thành công! Tìm th?y IP:", match[1]);
+                                // Ghi IP vào text c?nh tên
                                 targetNode.nodeValue = "\n" + tunName + " (" + match[1] + ")";
-                            } else {
-                                console.warn("=> Ð?c du?c file nhung không tìm th?y dòng 'remote' nào trong file " + tunName + ".ovpn");
                             }
                         }
-                    })
-                    .catch(err => console.error("L?i k?t n?i fetch:", err));
+                    }).catch(err => console.error(err));
                 }
             }
         });
     }, 800); 
 });
+
+// --- CH?C NANG 2: XU?T IP RA FILE TXT KHI B?M NÚT ---
+function exportRunningIPs() {
+    var promises = [];
+    var results = [];
+
+    if (!window.L || !L.env || !L.env.sessionid) {
+        alert("L?i: Không tìm th?y phiên k?t n?i (session) LuCI.");
+        return;
+    }
+
+    var btn = event.target;
+    var originalText = btn.value;
+    btn.value = "Ðang x? lý...";
+    btn.disabled = true;
+
+    // Quét tìm các tun dang "yes"
+    document.querySelectorAll('tr.cbi-section-table-row').forEach(function(row) {
+        var activeCell = row.querySelector('.cbi-value-field[data-name="_active"] div');
+        // L?y l?i tên nguyên b?n chu?n xác
+        var tunName = row.getAttribute('data-title');
+
+        if (tunName && activeCell && activeCell.textContent.includes('yes')) {
+            var p = fetch('/ubus/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    jsonrpc: '2.0', id: 1, method: 'call',
+                    params: [L.env.sessionid, 'file', 'read', { path: '/etc/openvpn/' + tunName + '.ovpn' }]
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data && data.result && data.result[1] && data.result[1].data) {
+                    var match = data.result[1].data.match(/^\s*remote\s+([^\s]+)/m);
+                    if (match && match[1]) {
+                        results.push(match[1]); // C?t IP vào m?ng
+                    }
+                }
+            }).catch(err => console.error(err));
+
+            promises.push(p);
+        }
+    });
+
+    if (promises.length === 0) {
+        alert("Hi?n t?i không có ti?n trình OpenVPN nào dang ch?y!");
+        btn.value = originalText;
+        btn.disabled = false;
+        return;
+    }
+
+    // Ch? cho T?T C? các file c?u hình du?c d?c xong
+    Promise.all(promises).then(function() {
+        btn.value = originalText;
+        btn.disabled = false;
+
+        if (results.length > 0) {
+            var textToSave = results.join("\n"); // Format thành các dòng g?n gàng
+
+            // Trình duy?t t? t?i file v?
+            var blob = new Blob([textToSave], { type: "text/plain;charset=utf-8" });
+            var url = window.URL.createObjectURL(blob);
+            var a = document.createElement("a");
+            a.href = url;
+            a.download = "danh_sach_ip.txt"; // Tên file t?i v?
+            document.body.appendChild(a);
+            a.click();
+            
+            setTimeout(function() {
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+            }, 100);
+        } else {
+            alert("Không tìm th?y IP nào trong các file c?u hình dang ch?y.");
+        }
+    });
+}
 </script>
