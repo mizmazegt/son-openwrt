@@ -6,7 +6,7 @@ STOP=15
 . $IPKG_INSTROOT/usr/share/passwall2/utils.sh
 APP_FILE=${APP_PATH}/app.sh
 
-# --- B?N THÊM DÒNG NÀY VÀO ÐÂY ---
+# --- BẠN THÊM DÒNG NÀY VÀO ÐÂY ---
 export ENABLE_DEPRECATED_MISSING_DOMAIN_RESOLVER=true
 # ---------------------------------
 
