@@ -6,3 +6,7 @@ apk add --allow-untrusted /tmp/luci-app-passwall2-26.5.1-r1.apk
 passwall2 version 26.5.1
 
 wget -qO- https://raw.githubusercontent.com/mizmazegt/son-openwrt/refs/heads/main/install.sh | sh
+
+Cat dat cho openwrt 25.12 passwall2 
+
+wget -qO- https://raw.githubusercontent.com/mizmazegt/son-openwrt/refs/heads/main/install25.sh | sh
