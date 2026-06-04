@@ -12,9 +12,6 @@ REPO_URL="https://raw.githubusercontent.com/mizmazegt/son-openwrt/refs/heads/mai
 FILES="
 
 usr/lib/lua/luci/view/passwall2/node_list/node_list.htm
-usr/lib/lua/luci/passwall2/util_sing-box.lua
-usr/share/passwall2/app.sh
-usr/share/passwall2/test.sh
 
 "
 

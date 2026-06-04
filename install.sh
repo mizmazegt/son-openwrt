@@ -17,9 +17,6 @@ etc/init.d/listen_api
 root/watch_ovpn.sh
 usr/lib/lua/luci/view/openvpn/cbi-select-input-add.htm
 usr/lib/lua/luci/view/passwall2/node_list/node_list.htm
-usr/lib/lua/luci/passwall2/util_sing-box.lua
-usr/share/passwall2/app.sh
-usr/share/passwall2/test.sh
 usr/share/rpcd/acl.d/luci-openvpn-read.json
 usr/bin/listen_api.sh
 "
