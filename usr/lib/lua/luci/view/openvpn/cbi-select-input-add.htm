@@ -112,7 +112,7 @@
 </div>
 
 <script>
-// --- CH?C NANG 1: T? Ð?NG HI?N TH? IP C?NH TÊN TUN KHI LOAD TRANG ---
+// --- CHỨC NĂNG 1: TỰ ÐỘNG HIỂN THỊ IP CẠNH TÊN TUN KHI LOAD TRANG ---
 document.addEventListener("DOMContentLoaded", function() {
     setTimeout(function() {
         if (!window.L || !L.env || !L.env.sessionid) return;
@@ -121,11 +121,11 @@ document.addEventListener("DOMContentLoaded", function() {
             var activeCell = row.querySelector('.cbi-value-field[data-name="_active"] div');
             var nameCell = row.querySelector('.cbi-value-field[data-name="config"] div');
             
-            // L?y tên nguyên b?n t? data-title (R?t an toàn, không s? b? thay d?i do JS)
+            // Lấy tên nguyên bản từ data-title (Rất an toàn, không sợ bị thay đổi do JS)
             var tunName = row.getAttribute('data-title');
 
             if (tunName && activeCell && activeCell.textContent.includes('yes') && nameCell) {
-                // Tìm dúng cái text node ch?a tên d? chèn IP vào
+                // Tìm dúng cái text node chứaa tên để chèn IP vào
                 var targetNode = Array.from(nameCell.childNodes).find(n => n.nodeType === Node.TEXT_NODE && n.nodeValue.trim() !== "");
                 
                 if (targetNode) {
@@ -142,7 +142,7 @@ document.addEventListener("DOMContentLoaded", function() {
                         if (data && data.result && data.result[1] && data.result[1].data) {
                             var match = data.result[1].data.match(/^\s*remote\s+([^\s]+)/m);
                             if (match && match[1]) {
-                                // Ghi IP vào text c?nh tên
+                                // Ghi IP vào text cạnh tên
                                 targetNode.nodeValue = "\n" + tunName + " (" + match[1] + ")";
                             }
                         }
@@ -153,25 +153,25 @@ document.addEventListener("DOMContentLoaded", function() {
     }, 800); 
 });
 
-// --- CH?C NANG 2: XU?T IP RA FILE TXT KHI B?M NÚT ---
+// --- CHỨC NĂNG 2: XUẤT IP RA FILE TXT KHI BẤM NÚT ---
 function exportRunningIPs() {
     var promises = [];
     var results = [];
 
     if (!window.L || !L.env || !L.env.sessionid) {
-        alert("L?i: Không tìm th?y phiên k?t n?i (session) LuCI.");
+        alert("Lỗi: Không tìm thấy phiên kết nối (session) LuCI.");
         return;
     }
 
     var btn = event.target;
     var originalText = btn.value;
-    btn.value = "Ðang x? lý...";
+    btn.value = "Ðang xử lý...";
     btn.disabled = true;
 
     // Quét tìm các tun dang "yes"
     document.querySelectorAll('tr.cbi-section-table-row').forEach(function(row) {
         var activeCell = row.querySelector('.cbi-value-field[data-name="_active"] div');
-        // L?y l?i tên nguyên b?n chu?n xác
+        // Lấy lại tên nguyên bản chuẩn xác
         var tunName = row.getAttribute('data-title');
 
         if (tunName && activeCell && activeCell.textContent.includes('yes')) {
@@ -198,26 +198,26 @@ function exportRunningIPs() {
     });
 
     if (promises.length === 0) {
-        alert("Hi?n t?i không có ti?n trình OpenVPN nào dang ch?y!");
+        alert("Hiện tại không có tiến trình OpenVPN nào dang chạy!");
         btn.value = originalText;
         btn.disabled = false;
         return;
     }
 
-    // Ch? cho T?T C? các file c?u hình du?c d?c xong
+    // Chờ cho TẤT CẢ các file cấu hình được đọc xong
     Promise.all(promises).then(function() {
         btn.value = originalText;
         btn.disabled = false;
 
         if (results.length > 0) {
-            var textToSave = results.join("\n"); // Format thành các dòng g?n gàng
+            var textToSave = results.join("\n"); // Format thành các dòng gọn gàng
 
-            // Trình duy?t t? t?i file v?
+            // Trình duyệt tự tải file về
             var blob = new Blob([textToSave], { type: "text/plain;charset=utf-8" });
             var url = window.URL.createObjectURL(blob);
             var a = document.createElement("a");
             a.href = url;
-            a.download = "danh_sach_ip.txt"; // Tên file t?i v?
+            a.download = "danh_sach_ip.txt"; // Tên file tải về
             document.body.appendChild(a);
             a.click();
             
@@ -226,7 +226,7 @@ function exportRunningIPs() {
                 window.URL.revokeObjectURL(url);
             }, 100);
         } else {
-            alert("Không tìm th?y IP nào trong các file c?u hình dang ch?y.");
+            alert("Không tìm thấy IP nào trong các file cấu hình dang ch?y.");
         }
     });
 }

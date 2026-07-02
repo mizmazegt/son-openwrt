@@ -14,11 +14,11 @@ FILES="
 etc/rc.local
 etc/init.d/vpn_watchdog
 etc/init.d/listen_api
-root/watch_ovpn.sh
 usr/lib/lua/luci/view/openvpn/cbi-select-input-add.htm
 usr/lib/lua/luci/view/passwall2/node_list/node_list.htm
 usr/share/rpcd/acl.d/luci-openvpn-read.json
 usr/bin/listen_api.sh
+usr/bin/watch_ovpn.sh
 "
 
 echo "Bắt đầu tải và thiết lập cấu hình bằng WGET..."
