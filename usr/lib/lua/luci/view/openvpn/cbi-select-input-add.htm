@@ -105,14 +105,14 @@
 	<div class="vpn-output">
 		<span id="vpn_output"></span>
 	</div>
-
-    <div style="margin-top: 15px; margin-bottom: 5px; text-align: left;">
-        <input class="btn cbi-button cbi-button-add" type="button" value="Tai file IP dang chay" onclick="exportRunningIPs()" style="background-color: #28a745; color: white; border-color: #28a745; padding: 5px 15px; font-weight: bold;" title="Trích xuat danh sách IP cua OpenVPN dang chay" />
-    </div>
+    <div style="margin-top: 15px; margin-bottom: 5px; text-align: left; display: flex; gap: 10px;">
+        <input class="btn cbi-button cbi-button-add" type="button" value="Tải danh sách IP đang chạy" onclick="exportRunningIPs()" style="background-color: #28a745; color: white; border-color: #28a745; padding: 5px 15px; font-weight: bold;" title="Trích xuat danh sách IP cua OpenVPN dang chay" />
+        <input class="btn cbi-button cbi-button-add" type="button" value="Tải danh sách tất cả IP" onclick="exportAllIPs()" style="background-color: #007bff; color: white; border-color: #007bff; padding: 5px 15px; font-weight: bold;" title="Trích xuat danh sách IP cua TAT CA OpenVPN" />
+	</div>
 </div>
 
 <script>
-// --- CHỨC NĂNG 1: TỰ ÐỘNG HIỂN THỊ IP CẠNH TÊN TUN KHI LOAD TRANG ---
+// --- CHỨC NĂNG 1: TỰ ĐỘNG HIỂN THỊ IP CẠNH TÊN TUN KHI LOAD TRANG ---
 document.addEventListener("DOMContentLoaded", function() {
     setTimeout(function() {
         if (!window.L || !L.env || !L.env.sessionid) return;
@@ -125,7 +125,7 @@ document.addEventListener("DOMContentLoaded", function() {
             var tunName = row.getAttribute('data-title');
 
             if (tunName && activeCell && activeCell.textContent.includes('yes') && nameCell) {
-                // Tìm dúng cái text node chứaa tên để chèn IP vào
+                // Tìm đúng cái text node chứa tên để chèn IP vào
                 var targetNode = Array.from(nameCell.childNodes).find(n => n.nodeType === Node.TEXT_NODE && n.nodeValue.trim() !== "");
                 
                 if (targetNode) {
@@ -153,7 +153,7 @@ document.addEventListener("DOMContentLoaded", function() {
     }, 800); 
 });
 
-// --- CHỨC NĂNG 2: XUẤT IP RA FILE TXT KHI BẤM NÚT ---
+// --- CHỨC NĂNG 2: XUẤT IP RA FILE TXT KHI BẤM NÚT (CHỈ CÁC TUN ĐANG CHẠY) ---
 function exportRunningIPs() {
     var promises = [];
     var results = [];
@@ -165,10 +165,10 @@ function exportRunningIPs() {
 
     var btn = event.target;
     var originalText = btn.value;
-    btn.value = "Ðang xử lý...";
+    btn.value = "Đang xử lý...";
     btn.disabled = true;
 
-    // Quét tìm các tun dang "yes"
+    // Quét tìm các tun đang "yes"
     document.querySelectorAll('tr.cbi-section-table-row').forEach(function(row) {
         var activeCell = row.querySelector('.cbi-value-field[data-name="_active"] div');
         // Lấy lại tên nguyên bản chuẩn xác
@@ -188,7 +188,7 @@ function exportRunningIPs() {
                 if (data && data.result && data.result[1] && data.result[1].data) {
                     var match = data.result[1].data.match(/^\s*remote\s+([^\s]+)/m);
                     if (match && match[1]) {
-                        results.push(match[1]); // C?t IP vào m?ng
+                        results.push(match[1]); // Cất IP vào mảng
                     }
                 }
             }).catch(err => console.error(err));
@@ -198,7 +198,7 @@ function exportRunningIPs() {
     });
 
     if (promises.length === 0) {
-        alert("Hiện tại không có tiến trình OpenVPN nào dang chạy!");
+        alert("Hiện tại không có tiến trình OpenVPN nào đang chạy!");
         btn.value = originalText;
         btn.disabled = false;
         return;
@@ -217,7 +217,7 @@ function exportRunningIPs() {
             var url = window.URL.createObjectURL(blob);
             var a = document.createElement("a");
             a.href = url;
-            a.download = "danh_sach_ip.txt"; // Tên file tải về
+            a.download = "danh_sach_ip_dang_chay.txt"; // Tên file tải về
             document.body.appendChild(a);
             a.click();
             
@@ -226,7 +226,83 @@ function exportRunningIPs() {
                 window.URL.revokeObjectURL(url);
             }, 100);
         } else {
-            alert("Không tìm thấy IP nào trong các file cấu hình dang ch?y.");
+            alert("Không tìm thấy IP nào trong các file cấu hình đang chạy.");
+        }
+    });
+}
+
+// --- CHỨC NĂNG 3: XUẤT IP CỦA TẤT CẢ CÁC TUN RA FILE TXT ---
+function exportAllIPs() {
+    var promises = [];
+    var results = [];
+
+    if (!window.L || !L.env || !L.env.sessionid) {
+        alert("Lỗi: Không tìm thấy phiên kết nối (session) LuCI.");
+        return;
+    }
+
+    var btn = event.target;
+    var originalText = btn.value;
+    btn.value = "Đang xử lý...";
+    btn.disabled = true;
+
+    // Quét tìm tất cả các tun (Bỏ qua điều kiện phải đang chạy)
+    document.querySelectorAll('tr.cbi-section-table-row').forEach(function(row) {
+        var tunName = row.getAttribute('data-title');
+
+        if (tunName) {
+            var p = fetch('/ubus/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    jsonrpc: '2.0', id: 1, method: 'call',
+                    params: [L.env.sessionid, 'file', 'read', { path: '/etc/openvpn/' + tunName + '.ovpn' }]
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data && data.result && data.result[1] && data.result[1].data) {
+                    var match = data.result[1].data.match(/^\s*remote\s+([^\s]+)/m);
+                    if (match && match[1]) {
+                        results.push(match[1]); // Cất IP vào mảng
+                    }
+                }
+            }).catch(err => console.error(err));
+
+            promises.push(p);
+        }
+    });
+
+    if (promises.length === 0) {
+        alert("Không tìm thấy cấu hình TUN nào trên hệ thống!");
+        btn.value = originalText;
+        btn.disabled = false;
+        return;
+    }
+
+    // Chờ cho TẤT CẢ các file cấu hình được đọc xong
+    Promise.all(promises).then(function() {
+        btn.value = originalText;
+        btn.disabled = false;
+
+        if (results.length > 0) {
+            var textToSave = results.join("\n"); 
+
+            // Trình duyệt tự tải file về
+            var blob = new Blob([textToSave], { type: "text/plain;charset=utf-8" });
+            var url = window.URL.createObjectURL(blob);
+            var a = document.createElement("a");
+            a.href = url;
+            a.download = "danh_sach_tat_ca_ip.txt"; // Tên file tải về
+            document.body.appendChild(a);
+            a.click();
+            
+            setTimeout(function() {
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+            }, 100);
+        } else {
+            alert("Không tìm thấy IP nào trong bất kỳ file cấu hình nào.");
         }
     });
 }

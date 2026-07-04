@@ -19,7 +19,7 @@ if node then
 	end
 end
 -%>
-<script src="<%=resource%>/view/<%=appname%>/Sortable.min.js"></script>
+<script src="<%=resource%>/view/<%=appname%>/Sortable.min.js?v=26.6.16"></script>
 
 <style>
 table th, .table .th {
@@ -419,7 +419,7 @@ table td, .table .td {
 				const dom = document.getElementById('modal-mask');
 				if (confirm('<%:Are you sure to delete select nodes?%>') == true) {
 					dom.style.display = 'block';
-					dom.innerHTML = '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;"><%:Processing, please wait…%></div>';
+					dom.innerHTML = '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;"><%:Processing, please waitâ€¦%></div>';
 					XHR.get('<%=api.url("delete_select_nodes")%>', {
 						ids: ids.join()
 					},
@@ -532,7 +532,7 @@ table td, .table .td {
 					if (dom) {
 						dom.title = "<%:Using...%>";
 						dom.classList.add("_now_use_bg");
-						//var v = "<a style='color: red'><%:Using...%>：</a>" + document.getElementById("cbid.<%=appname%>." + id + ".remarks").value;
+						//var v = "<a style='color: red'><%:Using...%>ï¼š</a>" + document.getElementById("cbid.<%=appname%>." + id + ".remarks").value;
 						//document.getElementById("cbi-<%=appname%>-" + id + "-remarks").innerHTML = v;
 						var dom_remarks = dom.querySelector("td.pw-remark");
 						if (dom_remarks) {
@@ -851,7 +851,7 @@ table td, .table .td {
 				<input class="btn cbi-button cbi-button-add" type="button" value="<%:Copy%>" onclick="copy_node('{{id}}')"/>
 				<input class="btn cbi-button cbi-button-edit" type="button" value="<%:Edit%>" onclick="to_edit_node('{{id}}')" alt="<%:Edit%>" title="<%:Edit%>">
 				<input class="btn cbi-button cbi-button-remove" type="button" value="<%:Delete%>" onclick="del_node('{{id}}')" alt="<%:Delete%>" title="<%:Delete%>">
-				<span class="drag-handle center" title="<%:Drag to reorder%>">⠿</span>
+				<span class="drag-handle center" title="<%:Drag to reorder%>">â ¿</span>
 			</div>
 		</td>
 	</tr>
@@ -914,9 +914,9 @@ table td, .table .td {
 			port_s = o["hysteria_hop"] || o["hysteria2_hop"];
 		}
 		if ((o.type === "Hysteria2" || o.protocol === 'hysteria2') && o.hysteria2_realms) {
-			str += type + " Realm：" + remarks;
+			str += type + " Realmï¼š" + remarks;
 		} else {
-			str += type + "：" + remarks;
+			str += type + "ï¼š" + remarks;
 		}
 		return str;
 	}
