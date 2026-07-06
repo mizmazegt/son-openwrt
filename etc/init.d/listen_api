@@ -1,19 +1,19 @@
 #!/bin/sh /etc/rc.common
 
 USE_PROCD=1
-START=99  # Ð?m b?o ch?y sau cùng khi m?ng và các d?ch v? khác dã lên h?t
+START=99  # Ðảm bảo chạy sau cùng khi mạng và các dịch vụ khác đã lên hết
 STOP=15
 
 start_service() {
     procd_open_instance
     
-    # Ch? d?nh du?ng d?n t?i file script c?a b?n
+    # Chỉ định đường dẫn tới file script của bạn
     procd_set_param command /bin/sh "/usr/bin/listen_api.sh"
     
-    # L?nh respawn báo cho procd bi?t: "N?u script này ch?t, hãy t? d?ng b?t l?i ngay"
+    # Lệnh respawn báo cho procd biết: "Nếu script này chết, hãy tự động bật lại ngay"
     procd_set_param respawn
     
-    # Ghi log chu?n c?a OpenWrt (d? xem b?ng l?nh logread)
+    # Ghi log chuẩn của OpenWrt (để xem bằng lệnh logread)
     procd_set_param stdout 1
     procd_set_param stderr 1
     
