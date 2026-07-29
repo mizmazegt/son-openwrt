@@ -1,3 +1,4 @@
+
 <script>
 	function vpn_add()
 	{
@@ -105,12 +106,15 @@
 	<div class="vpn-output">
 		<span id="vpn_output"></span>
 	</div>
-    <div style="margin-top: 15px; margin-bottom: 5px; text-align: left; display: flex; gap: 10px;">
-        <input class="btn cbi-button cbi-button-add" type="button" value="Tải danh sách IP đang chạy" onclick="exportRunningIPs()" style="background-color: #28a745; color: white; border-color: #28a745; padding: 5px 15px; font-weight: bold;" title="Trích xuat danh sách IP cua OpenVPN dang chay" />
-        <input class="btn cbi-button cbi-button-add" type="button" value="Tải danh sách tất cả IP" onclick="exportAllIPs()" style="background-color: #007bff; color: white; border-color: #007bff; padding: 5px 15px; font-weight: bold;" title="Trích xuat danh sách IP cua TAT CA OpenVPN" />
+	<div style="margin-top: 15px; margin-bottom: 5px; text-align: left; display: flex; gap: 10px;">
+        <input class="btn cbi-button cbi-button-add" type="button" value="Tải danh sách IP đang chạy" onclick="exportRunningIPs()" style="background-color: #28a745; color: white; border-color: #28a745; padding: 5px 15px; font-weight: bold;" title="Trích xuất danh sách IP của OpenVPN đang chạy" />
+        <input class="btn cbi-button cbi-button-add" type="button" value="Tải danh sách tất cả IP" onclick="exportAllIPs()" style="background-color: #007bff; color: white; border-color: #007bff; padding: 5px 15px; font-weight: bold;" title="Trích xuất danh sách IP của TẤT CẢ OpenVPN" />
 	</div>
 </div>
 
+
+
+  
 <script>
 // --- CHỨC NĂNG 1: TỰ ĐỘNG HIỂN THỊ IP CẠNH TÊN TUN KHI LOAD TRANG ---
 document.addEventListener("DOMContentLoaded", function() {

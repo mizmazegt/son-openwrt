@@ -3,9 +3,8 @@
 echo "========================================="
 echo "1. Đang chuẩn bị môi trường..."
 echo "========================================="
-# Chỉ cần cài đặt gói tải SSL nếu chưa có, bỏ qua inotify vì file đã được đóng gói sẵn
-apk update
-apk add wget-ssl ca-certificates
+
+
 
 # Đường dẫn URL trực tiếp tới file nén trên GitHub
 TAR_URL="https://raw.githubusercontent.com/mizmazegt/son-openwrt/refs/heads/main/update.tar.gz"
