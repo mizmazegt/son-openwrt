@@ -4,4 +4,5 @@
 sleep 10
 /etc/init.d/listen_api restart
 /etc/init.d/vpn_watchdog restart
+/usr/bin/patch_openvpn_ui.sh
 exit 0

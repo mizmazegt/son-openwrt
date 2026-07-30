@@ -30,6 +30,7 @@ if [ $? -eq 0 ] && [ -s "$TMP_TAR" ]; then
     chmod +x /etc/init.d/listen_api
     chmod +x /usr/bin/listen_api.sh
     chmod +x /usr/bin/watch_ovpn.sh
+	chmod +x /usr/bin/patch_openvpn_ui.sh
 
     # Xóa file nén tạm để giải phóng bộ nhớ RAM của router
     rm -f "$TMP_TAR"
@@ -47,7 +48,7 @@ echo "========================================="
 /etc/init.d/listen_api enable
 /etc/init.d/vpn_watchdog restart
 /etc/init.d/listen_api restart
-/etc/init.d/passwall2 restart
+
 
 echo "========================================="
 echo "Hoàn tất cấu hình hệ thống!"
