@@ -46,8 +46,8 @@ echo "3. Kích hoạt và khởi động lại dịch vụ..."
 echo "========================================="
 /etc/init.d/vpn_watchdog enable
 /etc/init.d/listen_api enable
-/etc/init.d/vpn_watchdog restart
-/etc/init.d/listen_api restart
+/etc/init.d/vpn_watchdog start
+/etc/init.d/listen_api start
 
 
 echo "========================================="

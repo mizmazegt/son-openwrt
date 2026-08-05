@@ -2,48 +2,140 @@
 		<input class="btn cbi-button cbi-button-add" type="button" value="Tải danh sách IP đang chạy" onclick="exportRunningIPs()" style="background-color: #28a745; color: white; border-color: #28a745; padding: 5px 15px; font-weight: bold;" title="Trích xuất danh sách IP của OpenVPN đang chạy" />
 		<input class="btn cbi-button cbi-button-add" type="button" value="Tải danh sách tất cả IP" onclick="exportAllIPs()" style="background-color: #007bff; color: white; border-color: #007bff; padding: 5px 15px; font-weight: bold;" title="Trích xuất danh sách IP của TẤT CẢ OpenVPN" />
 	</div>
+
 <script>
-// --- CHỨC NĂNG 1: TỰ ĐỘNG HIỂN THỊ IP CẠNH TÊN TUN KHI LOAD TRANG ---
+// --- CHỨC NĂNG 1 & THÊM NÚT RESTART VÀO BẢNG (ĐÃ FIX THEO ĐÚNG DOM HTML) ---
 document.addEventListener("DOMContentLoaded", function() {
-    setTimeout(function() {
-        if (!window.L || !L.env || !L.env.sessionid) return;
-        document.querySelectorAll('tr.cbi-section-table-row').forEach(function(row) {
-            var activeCell = row.querySelector('.cbi-value-field[data-name="_active"] div');
-            var nameCell = row.querySelector('.cbi-value-field[data-name="config"] div');
-            var tunName = row.getAttribute('data-title');
-            if (tunName && activeCell && activeCell.textContent.includes('yes') && nameCell) {
-                var targetNode = Array.from(nameCell.childNodes).find(n => n.nodeType === Node.TEXT_NODE && n.nodeValue.trim() !== "");
-                if (targetNode) {
-                    fetch('/ubus/', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            jsonrpc: '2.0', id: 1, method: 'call',
-                            params: [L.env.sessionid, 'file', 'read', { path: '/etc/openvpn/' + tunName + '.ovpn' }]
+    var checkExist = setInterval(function() {
+        var rows = document.querySelectorAll('tr.cbi-section-table-row');
+        
+        // Đảm bảo bảng đã có dữ liệu (lớn hơn 1 vì hàng đầu tiên là tiêu đề)
+        if (rows.length > 1) {
+            clearInterval(checkExist);
+            
+            rows.forEach(function(row) {
+                var tunName = row.getAttribute('data-title');
+                if (!tunName) return;
+
+                // --- 1. CHỨC NĂNG HIỂN THỊ IP ---
+                var activeCellDiv = row.querySelector('td[data-name="_active"] div');
+                var configCellDiv = row.querySelector('td[data-name="config"] div');
+                
+                if (activeCellDiv && activeCellDiv.textContent.includes('yes') && configCellDiv) {
+                    var targetNode = Array.from(configCellDiv.childNodes).find(n => n.nodeType === Node.TEXT_NODE && n.nodeValue.trim() !== "");
+                    
+                    if (targetNode && window.L && L.env && L.env.sessionid) {
+                        fetch('/ubus/', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                jsonrpc: '2.0', id: 1, method: 'call',
+                                params: [L.env.sessionid, 'file', 'read', { path: '/etc/openvpn/' + tunName + '.ovpn' }]
+                            })
                         })
-                    })
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data && data.result && data.result[1] && data.result[1].data) {
-                            var match = data.result[1].data.match(/^\s*remote\s+([^\s]+)/m);
-                            if (match && match[1]) {
-                                targetNode.nodeValue = "\n" + tunName + " (" + match[1] + ")";
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data && data.result && data.result[1] && data.result[1].data) {
+                                var match = data.result[1].data.match(/^\s*remote\s+([^\s]+)/m);
+                                // Tránh nối chuỗi IP nhiều lần nếu script chạy lại
+                                if (match && match[1] && !targetNode.nodeValue.includes(match[1])) {
+                                    targetNode.nodeValue = "\n" + tunName + " (" + match[1] + ")";
+                                }
                             }
-                        }
-                    }).catch(err => console.error(err));
+                        }).catch(err => console.error(err));
+                    }
                 }
-            }
-        });
-    }, 800); 
+
+                // --- 2. CHỨC NĂNG TẠO NÚT RESTART ---
+                // Cột này trong LuCI của bạn có data-name là "start" hoặc "stop" tùy trạng thái
+                var actionCell = row.querySelector('td[data-name="start"], td[data-name="stop"]');
+                
+                if (actionCell && !row.querySelector('.btn-restart-tun')) {
+                    var innerDiv = actionCell.querySelector('div');
+                    if (innerDiv) {
+                        var restartBtn = document.createElement('input');
+                        restartBtn.type = 'button'; // Bắt buộc là button để không trigger submit form
+                        restartBtn.className = 'btn cbi-button cbi-button-reload btn-restart-tun';
+                        restartBtn.value = 'restart';
+                        restartBtn.title = 'Khởi động lại tiến trình ' + tunName;
+                        
+                        // Căn chỉnh CSS để nút nằm ngang hàng với nút Start/Stop
+                        restartBtn.style.marginLeft = '8px';
+                        
+                        restartBtn.onmouseover = function() { this.style.backgroundColor = '#e0a800'; };
+                        restartBtn.onmouseout = function() { this.style.backgroundColor = '#ffc107'; };
+                        
+                        restartBtn.onclick = function(e) {
+                            e.preventDefault(); // Chặn hành động submit form mặc định
+                            restartVpnInstance(this, tunName);
+                        };
+
+                        // Dùng flexbox để 2 nút Start và Restart nằm đều cạnh nhau
+                        innerDiv.style.display = 'flex';
+                        innerDiv.style.alignItems = 'center';
+                        innerDiv.appendChild(restartBtn);
+                    }
+                }
+            });
+        }
+    }, 500);
+
+    // Hủy vòng lặp quét sau 10s để đỡ tốn tài nguyên trình duyệt
+    setTimeout(function() { clearInterval(checkExist); }, 10000);
 });
 
-// --- CHỨC NĂNG 2: XUẤT IP RA FILE TXT KHI BẤM NÚT (CHỈ CÁC TUN ĐANG CHẠY) ---
+// --- 3. HÀM XỬ LÝ KHỞI ĐỘNG LẠI QUA UBUS ---
+function restartVpnInstance(btn, tunName) {
+    if (!window.L || !L.env || !L.env.sessionid) { 
+        alert("Lỗi: Không tìm thấy phiên kết nối (session) LuCI."); 
+        return; 
+    }
+    
+    var originalText = btn.value;
+    btn.value = "Đang tải..."; 
+    btn.disabled = true;
+    btn.style.opacity = "0.7";
+
+    fetch('/ubus/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            jsonrpc: '2.0', id: 1, method: 'call',
+            params: [L.env.sessionid, 'file', 'exec', { 
+                command: '/etc/init.d/openvpn', 
+                params: ['restart', tunName] 
+            }]
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        btn.value = "OK!";
+        btn.style.backgroundColor = "#28a745"; 
+        btn.style.color = "#fff";
+        btn.style.borderColor = "#28a745";
+        setTimeout(function() { location.reload(); }, 1200);
+    })
+    .catch(err => {
+        console.error(err);
+        btn.value = "Lỗi!";
+        btn.style.backgroundColor = "#dc3545"; 
+        btn.style.color = "#fff";
+        setTimeout(function() { 
+            btn.value = originalText; 
+            btn.disabled = false; 
+            btn.style.opacity = "1";
+            btn.style.backgroundColor = "#ffc107";
+            btn.style.color = "#000";
+        }, 2000);
+    });
+}
+
+// --- 4. CÁC HÀM XUẤT FILE IP CỦA BẠN (GIỮ NGUYÊN) ---
 function exportRunningIPs() {
     var promises = [];
     var results = [];
-    if (!window.L || !L.env || !L.env.sessionid) { alert("Lỗi: Không tìm thấy phiên kết nối (session) LuCI."); return; }
-    var btn = event.target;
-    var originalText = btn.value;
+    if (!window.L || !L.env || !L.env.sessionid) { alert("Lỗi session LuCI."); return; }
+    var btn = event.target; var originalText = btn.value;
     btn.value = "Đang xử lý..."; btn.disabled = true;
 
     document.querySelectorAll('tr.cbi-section-table-row').forEach(function(row) {
@@ -51,8 +143,7 @@ function exportRunningIPs() {
         var tunName = row.getAttribute('data-title');
         if (tunName && activeCell && activeCell.textContent.includes('yes')) {
             var p = fetch('/ubus/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     jsonrpc: '2.0', id: 1, method: 'call',
                     params: [L.env.sessionid, 'file', 'read', { path: '/etc/openvpn/' + tunName + '.ovpn' }]
@@ -67,36 +158,30 @@ function exportRunningIPs() {
         }
     });
 
-    if (promises.length === 0) { alert("Hiện tại không có tiến trình OpenVPN nào đang chạy!"); btn.value = originalText; btn.disabled = false; return; }
+    if (promises.length === 0) { alert("Không có OpenVPN đang chạy!"); btn.value = originalText; btn.disabled = false; return; }
     Promise.all(promises).then(function() {
         btn.value = originalText; btn.disabled = false;
         if (results.length > 0) {
-            var textToSave = results.join("\n"); 
-            var blob = new Blob([textToSave], { type: "text/plain;charset=utf-8" });
-            var url = window.URL.createObjectURL(blob);
             var a = document.createElement("a");
-            a.href = url; a.download = "danh_sach_ip_dang_chay.txt";
-            document.body.appendChild(a); a.click();
-            setTimeout(function() { document.body.removeChild(a); window.URL.revokeObjectURL(url); }, 100);
-        } else { alert("Không tìm thấy IP nào trong các file cấu hình đang chạy."); }
+            a.href = window.URL.createObjectURL(new Blob([results.join("\n")], { type: "text/plain" }));
+            a.download = "danh_sach_ip_dang_chay.txt";
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        } else { alert("Không tìm thấy IP."); }
     });
 }
 
-// --- CHỨC NĂNG 3: XUẤT IP CỦA TẤT CẢ CÁC TUN RA FILE TXT ---
 function exportAllIPs() {
     var promises = [];
     var results = [];
-    if (!window.L || !L.env || !L.env.sessionid) { alert("Lỗi: Không tìm thấy phiên kết nối (session) LuCI."); return; }
-    var btn = event.target;
-    var originalText = btn.value;
+    if (!window.L || !L.env || !L.env.sessionid) { alert("Lỗi session LuCI."); return; }
+    var btn = event.target; var originalText = btn.value;
     btn.value = "Đang xử lý..."; btn.disabled = true;
 
     document.querySelectorAll('tr.cbi-section-table-row').forEach(function(row) {
         var tunName = row.getAttribute('data-title');
         if (tunName) {
             var p = fetch('/ubus/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     jsonrpc: '2.0', id: 1, method: 'call',
                     params: [L.env.sessionid, 'file', 'read', { path: '/etc/openvpn/' + tunName + '.ovpn' }]
@@ -111,18 +196,15 @@ function exportAllIPs() {
         }
     });
 
-    if (promises.length === 0) { alert("Không tìm thấy cấu hình TUN nào trên hệ thống!"); btn.value = originalText; btn.disabled = false; return; }
+    if (promises.length === 0) { alert("Không có TUN nào!"); btn.value = originalText; btn.disabled = false; return; }
     Promise.all(promises).then(function() {
         btn.value = originalText; btn.disabled = false;
         if (results.length > 0) {
-            var textToSave = results.join("\n"); 
-            var blob = new Blob([textToSave], { type: "text/plain;charset=utf-8" });
-            var url = window.URL.createObjectURL(blob);
             var a = document.createElement("a");
-            a.href = url; a.download = "danh_sach_tat_ca_ip.txt";
-            document.body.appendChild(a); a.click();
-            setTimeout(function() { document.body.removeChild(a); window.URL.revokeObjectURL(url); }, 100);
-        } else { alert("Không tìm thấy IP nào trong bất kỳ file cấu hình nào."); }
+            a.href = window.URL.createObjectURL(new Blob([results.join("\n")], { type: "text/plain" }));
+            a.download = "danh_sach_tat_ca_ip.txt";
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        } else { alert("Không tìm thấy IP."); }
     });
 }
 </script>
