@@ -48,6 +48,8 @@
     <div class="flex-gap">
         <button class="btn btn-green" onclick="exportRunningIPs()">Tải danh sách IP đang chạy</button>
         <button class="btn btn-blue" onclick="exportAllIPs()">Tải danh sách tất cả IP</button>
+        <!-- NÚT BẤM MỚI ĐƯỢC THÊM VÀO ĐÂY -->
+        <button class="btn btn-orange" onclick="forceCheckAllInternet(this)">Kiểm tra mạng toàn bộ</button>
         <button class="btn btn-gray" onclick="loadVpnData()">Làm mới danh sách (F5)</button>
     </div>
     <div id="internetTimer">Kiểm tra Internet tự động mỗi 3 phút.</div>
@@ -126,14 +128,13 @@ async function doLogin() {
 setInterval(async () => {
     if (session_id && session_id !== '00000000000000000000000000000000') {
         try {
-            // Gọi một hàm rất nhẹ, ví dụ như kiểm tra thông tin session hiện tại
             await callUbus('call', 'session', 'get', {});
             console.log("Heartbeat: Đã làm mới phiên đăng nhập");
         } catch (e) {
             console.error("Lỗi khi làm mới phiên đăng nhập", e);
         }
     }
-}, 180000); // 180,000 ms = 3 phút
+}, 180000); 
 
 async function loadVpnData() {
     try {
@@ -181,7 +182,6 @@ async function loadVpnData() {
 
         const vpnData = await Promise.all(vpnList.map(async (tun) => {
             let ip = "N/A";
-
             try {
                 const fileRes = await callUbus('call', 'file', 'read', {
                     path: `/etc/openvpn/${tun}.ovpn`
@@ -194,7 +194,6 @@ async function loadVpnData() {
                 ) {
                     const match =
                         fileRes.result[1].data.match(/^\s*remote\s+([^\s]+)/m);
-
                     if (match) {
                         ip = match[1];
                     }
@@ -220,36 +219,23 @@ async function loadVpnData() {
         }));
 
         renderVpnTable(vpnData);
-
-        // QUAN TRỌNG:
-        // F5/load trang KHÔNG gọi kiểm tra Internet toàn bộ.
-        // Chỉ hiển thị trạng thái đã lưu và giữ nguyên bộ đếm 3 phút.
         updateInternetTimer();
 
     } catch (error) {
         console.error("loadVpnData error:", error);
-
         document.getElementById('loginForm').style.display = 'block';
         document.getElementById('vpnBody').innerHTML =
             '<tr><td colspan="5" style="color:red">Lỗi tải dữ liệu. Vui lòng đăng nhập lại.</td></tr>';
     }
 }
 
-/*
- * Vẽ bảng VPN.
- */
 function renderVpnTable(vpnData) {
     const body = document.getElementById('vpnBody');
     body.innerHTML = '';
 
     vpnData.forEach(item => {
         const tr = document.createElement('tr');
-
-        tr.setAttribute(
-            'data-running',
-            item.isRunning ? 'true' : 'false'
-        );
-
+        tr.setAttribute('data-running', item.isRunning ? 'true' : 'false');
         tr.setAttribute('data-tun', item.tun);
 
         const statusHtml = item.isRunning
@@ -257,12 +243,9 @@ function renderVpnTable(vpnData) {
             : '<span style="color:red;">Đã dừng</span>';
 
         const actionBtns = item.isRunning
-            ? `<button class="btn btn-red"
-                    onclick="toggleVpn('${item.tun}', 'stop', this)">Dừng</button>
-               <button class="btn btn-orange"
-                    onclick="restartVpn('${item.tun}', this)">Restart</button>`
-            : `<button class="btn btn-green"
-                    onclick="toggleVpn('${item.tun}', 'start', this)">Khởi động</button>`;
+            ? `<button class="btn btn-red" onclick="toggleVpn('${item.tun}', 'stop', this)">Dừng</button>
+               <button class="btn btn-orange" onclick="restartVpn('${item.tun}', this)">Restart</button>`
+            : `<button class="btn btn-green" onclick="toggleVpn('${item.tun}', 'start', this)">Khởi động</button>`;
 
         tr.innerHTML = `
             <td><strong>${item.tun}</strong></td>
@@ -272,28 +255,16 @@ function renderVpnTable(vpnData) {
                 ${getInternetStatusHtml(item.internet)}
             </td>
             <td>
-                <button class="btn btn-blue"
-                    onclick="openEditModal('${item.tun}')">Sửa</button>
+                <button class="btn btn-blue" onclick="openEditModal('${item.tun}')">Sửa</button>
                 ${actionBtns}
-                <button class="btn btn-gray"
-                    onclick="deleteVpn('${item.tun}', this)">Xóa</button>
+                <button class="btn btn-gray" onclick="deleteVpn('${item.tun}', this)">Xóa</button>
             </td>
         `;
-
         body.appendChild(tr);
     });
 }
 
-
-/*
- * ============================================================
- * INTERNET STATUS STORAGE
- * ============================================================
- *
- * Trạng thái Internet và mốc kiểm tra kế tiếp được lưu bằng
- * localStorage để F5 không làm reset bộ đếm 3 phút.
- */
-const INTERNET_CHECK_INTERVAL = 180000; // 3 phút
+const INTERNET_CHECK_INTERVAL = 180000; 
 const INTERNET_NEXT_CHECK_KEY = 'vpn_manager_next_internet_check_at';
 const INTERNET_STATUS_KEY = 'vpn_manager_internet_status';
 
@@ -315,13 +286,11 @@ function getSavedInternetStates() {
 
 function saveInternetState(tunName, status) {
     const states = getSavedInternetStates();
-
     if (status === 'online' || status === 'offline') {
         states[tunName] = status;
     } else if (status === 'stopped') {
         delete states[tunName];
     }
-
     try {
         localStorage.setItem(INTERNET_STATUS_KEY, JSON.stringify(states));
     } catch (e) {
@@ -331,22 +300,18 @@ function saveInternetState(tunName, status) {
 
 function saveAllInternetStates(vpnResult) {
     const states = getSavedInternetStates();
-
     Object.keys(vpnResult || {}).forEach(tun => {
         const vpn = vpnResult[tun];
-
         if (!vpn || vpn.running !== true) {
             delete states[tun];
             return;
         }
-
         if (vpn.internet === true) {
             states[tun] = 'online';
         } else {
             states[tun] = 'offline';
         }
     });
-
     try {
         localStorage.setItem(INTERNET_STATUS_KEY, JSON.stringify(states));
     } catch (e) {
@@ -365,23 +330,15 @@ function setNextInternetCheckAt(timestamp) {
 
 function ensureInternetSchedule() {
     let next = getNextInternetCheckAt();
-
-    // Lần đầu sử dụng: bắt đầu bộ đếm 3 phút, KHÔNG kiểm tra ngay.
     if (!next) {
         next = Date.now() + INTERNET_CHECK_INTERVAL;
         setNextInternetCheckAt(next);
     }
-
     return next;
 }
 
-/*
- * Kiểm tra TOÀN BỘ tun0 -> tun100.
- * Chỉ được gọi khi bộ đếm 3 phút tới hạn.
- */
 async function checkAllVpnInternet() {
     if (internetCheckRunning) return;
-
     internetCheckRunning = true;
 
     try {
@@ -404,7 +361,6 @@ async function checkAllVpnInternet() {
 
         const rawText = await response.text();
         let result;
-
         try {
             result = JSON.parse(rawText);
         } catch (e) {
@@ -419,39 +375,21 @@ async function checkAllVpnInternet() {
 
         Object.keys(result.vpn).forEach(tun => {
             const vpn = result.vpn[tun];
-
             if (vpn.running === true) {
-                updateInternetCell(
-                    tun,
-                    vpn.internet === true ? 'online' : 'offline'
-                );
-
-                const row = document.querySelector(
-                    `#vpnBody tr[data-tun="${CSS.escape(tun)}"]`
-                );
-
+                updateInternetCell(tun, vpn.internet === true ? 'online' : 'offline');
+                const row = document.querySelector(`#vpnBody tr[data-tun="${CSS.escape(tun)}"]`);
                 if (row) row.setAttribute('data-running', 'true');
             } else {
                 updateInternetCell(tun, 'stopped');
-
-                const row = document.querySelector(
-                    `#vpnBody tr[data-tun="${CSS.escape(tun)}"]`
-                );
-
+                const row = document.querySelector(`#vpnBody tr[data-tun="${CSS.escape(tun)}"]`);
                 if (row) row.setAttribute('data-running', 'false');
             }
         });
 
-        // Tính mốc tiếp theo SAU khi lần kiểm tra hiện tại hoàn tất.
         setNextInternetCheckAt(Date.now() + INTERNET_CHECK_INTERVAL);
-
     } catch (error) {
         console.error('Internet full check error:', error);
-
-        // Nếu full check lỗi, không xóa trạng thái cũ.
-        // Chỉ dời lần kiểm tra kế tiếp thêm 3 phút.
         setNextInternetCheckAt(Date.now() + INTERNET_CHECK_INTERVAL);
-
         document.querySelectorAll('#vpnBody tr[data-tun]').forEach(row => {
             if (row.getAttribute('data-running') === 'true') {
                 updateInternetCell(row.getAttribute('data-tun'), 'offline');
@@ -463,30 +401,21 @@ async function checkAllVpnInternet() {
     }
 }
 
-/*
- * Kiểm tra CHỈ MỘT tunnel sau Start/Restart.
- * Không ảnh hưởng bộ đếm 3 phút.
- */
 async function checkOneVpnInternet(tunName) {
     try {
         updateInternetCell(tunName, 'checking');
-
         const response = await fetch('/cgi-bin/vpn-manager', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
             },
-            body: JSON.stringify({
-                action: 'internet',
-                instance: tunName
-            }),
+            body: JSON.stringify({ action: 'internet', instance: tunName }),
             cache: 'no-store'
         });
 
         const rawText = await response.text();
         let result;
-
         try {
             result = JSON.parse(rawText);
         } catch (e) {
@@ -498,7 +427,6 @@ async function checkOneVpnInternet(tunName) {
         }
 
         const vpn = result.vpn[tunName];
-
         if (vpn.running === true) {
             const status = vpn.internet === true ? 'online' : 'offline';
             updateInternetCell(tunName, status);
@@ -507,14 +435,9 @@ async function checkOneVpnInternet(tunName) {
             updateInternetCell(tunName, 'stopped');
             saveInternetState(tunName, 'stopped');
         }
-
     } catch (error) {
         console.error(`Internet check ${tunName} error:`, error);
-
-        const row = document.querySelector(
-            `#vpnBody tr[data-tun="${CSS.escape(tunName)}"]`
-        );
-
+        const row = document.querySelector(`#vpnBody tr[data-tun="${CSS.escape(tunName)}"]`);
         if (row && row.getAttribute('data-running') === 'true') {
             updateInternetCell(tunName, 'offline');
             saveInternetState(tunName, 'offline');
@@ -522,73 +445,35 @@ async function checkOneVpnInternet(tunName) {
     }
 }
 
-
-/*
- * Cập nhật riêng ô Internet.
- */
 function updateInternetCell(tunName, status) {
-    const row = document.querySelector(
-        `#vpnBody tr[data-tun="${CSS.escape(tunName)}"]`
-    );
-
+    const row = document.querySelector(`#vpnBody tr[data-tun="${CSS.escape(tunName)}"]`);
     if (!row) return;
-
     const cell = row.querySelector('.internet-status');
-
     if (cell) {
         cell.innerHTML = getInternetStatusHtml(status);
     }
 }
 
-
-/*
- * HTML trạng thái Internet.
- */
 function getInternetStatusHtml(status) {
     switch (status) {
-        case 'online':
-            return '<span class="internet-online">● Có mạng</span>';
-
-        case 'offline':
-            return '<span class="internet-offline">● Mất mạng</span>';
-
-        case 'checking':
-            return '<span class="internet-checking">● Đang kiểm tra...</span>';
-
-        case 'stopped':
-            return '<span class="internet-stopped">— Không kiểm tra</span>';
-
+        case 'online': return '<span class="internet-online">● Có mạng</span>';
+        case 'offline': return '<span class="internet-offline">● Mất mạng</span>';
+        case 'checking': return '<span class="internet-checking">● Đang kiểm tra...</span>';
+        case 'stopped': return '<span class="internet-stopped">— Không kiểm tra</span>';
         case 'unknown':
-        default:
-            return '<span class="internet-stopped">— Chưa kiểm tra</span>';
+        default: return '<span class="internet-stopped">— Chưa kiểm tra</span>';
     }
 }
 
-
-/*
- * ============================================================
- * INTERNET MONITOR
- * ============================================================
- *
- * - Bộ đếm được lưu trong localStorage.
- * - F5 không reset bộ đếm.
- * - F5 không kiểm tra Internet toàn bộ.
- * - Chỉ khi tới hạn mới gọi CGI action=internet.
- * - Start/Restart chỉ gọi checkOneVpnInternet(tunName).
- */
 function updateInternetTimer() {
     const timer = document.getElementById('internetTimer');
     if (!timer) return;
-
     const next = ensureInternetSchedule();
     const seconds = Math.max(0, Math.ceil((next - Date.now()) / 1000));
-
     if (seconds > 0) {
         const minutes = Math.floor(seconds / 60);
         const secs = seconds % 60;
-
-        timer.innerText =
-            `Kiểm tra toàn bộ Internet tiếp theo sau ${minutes}:${String(secs).padStart(2, '0')}`;
+        timer.innerText = `Kiểm tra toàn bộ Internet tiếp theo sau ${minutes}:${String(secs).padStart(2, '0')}`;
     } else if (internetCheckRunning) {
         timer.innerText = 'Đang kiểm tra Internet toàn bộ...';
     } else {
@@ -596,13 +481,11 @@ function updateInternetTimer() {
     }
 }
 
-
 function startInternetMonitor() {
     if (internetCheckTimeout) {
         clearTimeout(internetCheckTimeout);
         internetCheckTimeout = null;
     }
-
     if (internetCountdownInterval) {
         clearInterval(internetCountdownInterval);
         internetCountdownInterval = null;
@@ -611,52 +494,48 @@ function startInternetMonitor() {
     const scheduleNext = () => {
         const next = ensureInternetSchedule();
         const delay = Math.max(0, next - Date.now());
-
         if (delay === 0) {
-            checkAllVpnInternet().finally(() => {
-                scheduleNext();
-            });
+            checkAllVpnInternet().finally(() => { scheduleNext(); });
             return;
         }
-
         updateInternetTimer();
-
         internetCheckTimeout = setTimeout(async () => {
-            // Chỉ kiểm tra toàn bộ khi đúng mốc đã lưu.
             if (Date.now() >= getNextInternetCheckAt()) {
                 await checkAllVpnInternet();
             }
-
             scheduleNext();
         }, delay);
     };
 
     scheduleNext();
-
-    internetCountdownInterval = setInterval(() => {
-        updateInternetTimer();
-    }, 1000);
+    internetCountdownInterval = setInterval(() => { updateInternetTimer(); }, 1000);
 }
 
-
-/*
- * Tương thích với code cũ:
- * KHÔNG reset timer nữa.
- * Chỉ cập nhật đồng hồ hiện tại.
- */
 function restartInternetMonitor() {
     ensureInternetSchedule();
     updateInternetTimer();
 }
 
+// HÀM MỚI: KIỂM TRA MẠNG BẰNG NÚT BẤM THỦ CÔNG
+async function forceCheckAllInternet(btn) {
+    if (internetCheckRunning) return;
+
+    const originalText = btn.innerText;
+    btn.innerText = "Đang kiểm tra...";
+    btn.disabled = true;
+
+    try {
+        await checkAllVpnInternet();
+    } finally {
+        btn.innerText = originalText;
+        btn.disabled = false;
+    }
+}
 
 async function toggleVpn(tunName, action, btn) {
     const originalText = btn.innerText;
-
     btn.disabled = true;
-    btn.innerText = action === 'start'
-        ? 'Đang khởi động...'
-        : 'Đang dừng...';
+    btn.innerText = action === 'start' ? 'Đang khởi động...' : 'Đang dừng...';
 
     try {
         const response = await fetch('/cgi-bin/vpn-manager', {
@@ -665,16 +544,12 @@ async function toggleVpn(tunName, action, btn) {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
             },
-            body: JSON.stringify({
-                instance: tunName,
-                action: action
-            }),
+            body: JSON.stringify({ instance: tunName, action: action }),
             cache: 'no-store'
         });
 
         const rawText = await response.text();
         let result;
-
         try {
             result = JSON.parse(rawText);
         } catch (e) {
@@ -682,39 +557,21 @@ async function toggleVpn(tunName, action, btn) {
         }
 
         if (!response.ok || !result.success) {
-            throw new Error(
-                result.error ||
-                result.detail ||
-                `HTTP ${response.status}`
-            );
+            throw new Error(result.error || result.detail || `HTTP ${response.status}`);
         }
 
-        // Refresh bảng nhưng KHÔNG kiểm tra toàn bộ Internet.
         await loadVpnData();
-
-        // Không reset bộ đếm 3 phút.
         restartInternetMonitor();
 
         if (action === 'start' && result.running === true) {
-            // Chỉ kiểm tra tun vừa khởi động.
             setTimeout(() => checkOneVpnInternet(tunName), 1200);
         } else if (action === 'stop') {
             updateInternetCell(tunName, 'stopped');
             saveInternetState(tunName, 'stopped');
         }
-
     } catch (error) {
         console.error('VPN manager error:', error);
-
-        alert(
-            'Không thể ' +
-            (action === 'start' ? 'khởi động' : 'dừng') +
-            ' ' +
-            tunName +
-            '.\n\n' +
-            error.message
-        );
-
+        alert('Không thể ' + (action === 'start' ? 'khởi động' : 'dừng') + ' ' + tunName + '.\n\n' + error.message);
     } finally {
         setTimeout(() => {
             btn.innerText = originalText;
@@ -723,11 +580,9 @@ async function toggleVpn(tunName, action, btn) {
     }
 }
 
-
 async function restartVpn(tunName, btn) {
     const originalText = btn.innerText;
     const originalClass = btn.className;
-
     btn.innerText = 'Đang khởi động lại...';
     btn.disabled = true;
 
@@ -738,16 +593,12 @@ async function restartVpn(tunName, btn) {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
             },
-            body: JSON.stringify({
-                instance: tunName,
-                action: 'restart'
-            }),
+            body: JSON.stringify({ instance: tunName, action: 'restart' }),
             cache: 'no-store'
         });
 
         const rawText = await response.text();
         let result;
-
         try {
             result = JSON.parse(rawText);
         } catch (e) {
@@ -755,35 +606,25 @@ async function restartVpn(tunName, btn) {
         }
 
         if (!response.ok || !result.success) {
-            throw new Error(
-                result.error ||
-                result.detail ||
-                `HTTP ${response.status}`
-            );
+            throw new Error(result.error || result.detail || `HTTP ${response.status}`);
         }
 
         btn.innerText = 'OK!';
         btn.className = 'btn btn-green';
 
-        // Refresh UI nhưng KHÔNG reset bộ đếm và KHÔNG full-check.
         await loadVpnData();
         restartInternetMonitor();
 
-        // Chỉ kiểm tra tun vừa restart.
         setTimeout(() => checkOneVpnInternet(tunName), 1200);
-
         setTimeout(() => {
             btn.innerText = originalText;
             btn.disabled = false;
             btn.className = originalClass;
         }, 1500);
-
     } catch (e) {
         console.error('Restart VPN error:', e);
-
         btn.innerText = 'Lỗi!';
         btn.className = 'btn btn-red';
-
         setTimeout(() => {
             btn.innerText = originalText;
             btn.disabled = false;
@@ -809,7 +650,6 @@ async function deleteVpn(tunName, btn) {
         const result = await res.json();
         if (!res.ok || !result.success) throw new Error(result.error || result.detail || "Lỗi không xác định");
 
-        // Xóa thành công: xóa trạng thái Internet đã lưu của TUN này.
         saveInternetState(tunName, 'stopped');
         loadVpnData(); 
     } catch (e) {
@@ -829,16 +669,12 @@ async function openEditModal(tunName) {
         
         const result = await res.json();
         
-        // Chỉ cần server trả về success: true là cho phép mở form
         if (res.ok && result.success) {
             let decodedText = "";
-            
-            // Nếu có dữ liệu mã hóa thì mới tiến hành giải mã
             if (result.data_b64 && result.data_b64 !== "") {
                 decodedText = decodeURIComponent(escape(window.atob(result.data_b64)));
             }
-            
-            document.getElementById('editContent').value = decodedText; // Nếu file rỗng, khung này sẽ trắng
+            document.getElementById('editContent').value = decodedText; 
             document.getElementById('editTunName').innerText = tunName;
             document.getElementById('editTunInput').value = tunName;
             document.getElementById('editModal').style.display = 'block';
@@ -859,7 +695,6 @@ async function saveVpn() {
     const newContent = document.getElementById('editContent').value;
     
     try {
-        // Mã hóa nội dung mới sang Base64 để gửi qua JSON
         const encodedB64 = window.btoa(unescape(encodeURIComponent(newContent)));
         
         const res = await fetch("/cgi-bin/vpn-manager", {
@@ -886,7 +721,6 @@ async function saveVpn() {
     }
 }
 
-// XUẤT FILE IP ĐANG CHẠY CHUẨN XÁC
 function exportRunningIPs() {
     let ips = [];
     document.querySelectorAll('#vpnBody tr').forEach(tr => {
@@ -908,7 +742,6 @@ function exportRunningIPs() {
     }
 }
 
-// XUẤT TOÀN BỘ FILE IP
 function exportAllIPs() {
     let ips = [];
     document.querySelectorAll('#vpnBody tr').forEach(tr => {
@@ -927,7 +760,6 @@ async function uploadVpn(btn) {
     const tunName = document.getElementById('newTunName').value.trim();
     const fileInput = document.getElementById('newOvpnFile');
 
-    // Validate đầu vào cơ bản
     if (!tunName.match(/^tun[0-9]+$/)) {
         alert("Tên VPN không hợp lệ! Hãy nhập định dạng tun0, tun1, tun100...");
         return;
@@ -947,7 +779,6 @@ async function uploadVpn(btn) {
     reader.onload = async function(e) {
         try {
             const content = e.target.result;
-            // Mã hóa nội dung file sang Base64
             const encodedB64 = window.btoa(unescape(encodeURIComponent(content)));
 
             const res = await fetch("/cgi-bin/vpn-manager", {
@@ -966,12 +797,11 @@ async function uploadVpn(btn) {
                 throw new Error(result.error || "Lỗi quá trình tải lên");
             }
 
-            // Xóa rỗng form sau khi upload thành công
             document.getElementById('newTunName').value = '';
             fileInput.value = '';
             
             alert(`Đã thêm thành công cấu hình cho ${tunName}!`);
-            loadVpnData(); // Load lại bảng để hiện TUN mới
+            loadVpnData(); 
         } catch (err) {
             alert(`Lỗi upload: ${err.message}`);
         } finally {
@@ -980,14 +810,10 @@ async function uploadVpn(btn) {
         }
     };
     
-    // Đọc file dưới dạng văn bản
     reader.readAsText(file);
 }
 
-
 window.onload = async function () {
-    // Khởi tạo/khôi phục bộ đếm trước khi load dữ liệu.
-    // F5 không kiểm tra Internet toàn bộ.
     ensureInternetSchedule();
     startInternetMonitor();
     await loadVpnData();
