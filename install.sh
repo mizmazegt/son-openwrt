@@ -28,9 +28,10 @@ if [ $? -eq 0 ] && [ -s "$TMP_TAR" ]; then
     chmod +x /etc/rc.local
     chmod +x /etc/init.d/vpn_watchdog
     chmod +x /etc/init.d/listen_api
+	chmod +x /etc/init.d/extend_session
     chmod +x /usr/bin/listen_api.sh
     chmod +x /usr/bin/watch_ovpn.sh
-	chmod +x /usr/bin/patch_openvpn_ui.sh
+	chmod +x /www/cgi-bin/vpn-manager
 
     # Xóa file nén tạm để giải phóng bộ nhớ RAM của router
     rm -f "$TMP_TAR"
@@ -46,8 +47,10 @@ echo "3. Kích hoạt và khởi động lại dịch vụ..."
 echo "========================================="
 /etc/init.d/vpn_watchdog enable
 /etc/init.d/listen_api enable
+/etc/init.d/extend_session enable
 /etc/init.d/vpn_watchdog start
 /etc/init.d/listen_api start
+/etc/init.d/extend_session start
 
 
 echo "========================================="

@@ -1,0 +1,215 @@
+#!/bin/sh
+
+# ============================================================
+# OpenWrt VPN Manager CGI
+# ============================================================
+
+echo "Content-Type: application/json"
+echo "Cache-Control: no-store, no-cache, must-revalidate"
+echo ""
+
+if [ "$REQUEST_METHOD" != "POST" ]; then
+    echo '{"success":false,"error":"Method not allowed"}'
+    exit 1
+fi
+
+BODY="$(cat)"
+ACTION="$(printf '%s' "$BODY" | jsonfilter -e '@.action' 2>/dev/null)"
+INSTANCE="$(printf '%s' "$BODY" | jsonfilter -e '@.instance' 2>/dev/null)"
+
+# ============================================================
+# INTERNET CHECK
+# ============================================================
+
+if [ "$ACTION" = "internet" ]; then
+    SERVICE_JSON="$(ubus call service list '{"name":"openvpn","verbose":true}' 2>/dev/null)"
+    if [ -z "$SERVICE_JSON" ]; then
+        echo '{"success":false,"error":"Cannot query OpenVPN service"}'
+        exit 1
+    fi
+
+    printf '{"success":true,"vpn":{'
+    FIRST=1
+
+    # Kiểm tra xem có truyền instance cụ thể không
+    if [ -n "$INSTANCE" ] && [ "$INSTANCE" != "null" ]; then
+        # Kiểm tra định dạng hợp lệ để bảo mật
+        case "$INSTANCE" in
+            tun[0-9]|tun[1-9][0-9]|tun100)
+                TUN_LIST="$INSTANCE"
+                ;;
+            *)
+                echo '{"success":false,"error":"Invalid VPN instance"}'
+                exit 1
+                ;;
+        esac
+    else
+        # Nếu không truyền, tạo danh sách check toàn bộ
+        TUN_LIST=""
+        for NUM in $(seq 0 100); do
+            TUN_LIST="$TUN_LIST tun$NUM"
+        done
+    fi
+
+    # Lặp qua các TUN cần kiểm tra
+    for TUN in $TUN_LIST; do
+        RUNNING="$(printf '%s' "$SERVICE_JSON" | jsonfilter -e "@.openvpn.instances.$TUN.running" 2>/dev/null)"
+
+        if [ "$RUNNING" = "true" ]; then
+            INTERNET=false
+            REASON="unknown"
+
+            if ! ip link show dev "$TUN" >/dev/null 2>&1; then
+                REASON="interface_not_found"
+            else
+                IP_ADDR="$(ip -4 -o addr show dev "$TUN" 2>/dev/null | awk '{print $4}' | head -n 1)"
+                if [ -z "$IP_ADDR" ]; then
+                    REASON="no_ip"
+                else
+                    if ping -I "$TUN" -c 1 -W 2 1.1.1.1 >/dev/null 2>&1; then
+                        INTERNET=true
+                        REASON="ok"
+                    else
+                        REASON="ping_failed"
+                    fi
+                fi
+            fi
+        else
+            RUNNING=false
+            INTERNET=false
+            REASON="stopped"
+        fi
+
+        if [ "$FIRST" -eq 0 ]; then
+            printf ','
+        fi
+        FIRST=0
+
+        printf '"%s":{"running":%s,"internet":%s,"reason":"%s"}' \
+            "$TUN" "$RUNNING" "$INTERNET" "$REASON"
+    done
+
+    printf '}}'
+    exit 0
+fi
+
+# ============================================================
+# START / STOP / RESTART / UPLOAD / READ / WRITE / DELETE
+# ============================================================
+
+if [ -z "$ACTION" ] || [ -z "$INSTANCE" ]; then
+    echo '{"success":false,"error":"Missing action or instance"}'
+    exit 1
+fi
+
+case "$ACTION" in
+    start|stop|restart|delete|read|write|upload)
+        ;;
+    *)
+        echo '{"success":false,"error":"Invalid action"}'
+        exit 1
+        ;;
+esac
+
+case "$INSTANCE" in
+    tun[0-9]|tun[1-9][0-9]|tun100)
+        ;;
+    *)
+        echo '{"success":false,"error":"Invalid VPN instance"}'
+        exit 1
+        ;;
+esac
+
+INSTANCE_EXISTS=false
+if printf '%s' "$SERVICE_JSON" | jsonfilter -e "@.openvpn.instances.$INSTANCE" >/dev/null 2>&1; then
+    INSTANCE_EXISTS=true
+elif uci -q get "openvpn.$INSTANCE" >/dev/null 2>&1; then
+    INSTANCE_EXISTS=true
+elif [ -f "/etc/openvpn/$INSTANCE.ovpn" ]; then
+    INSTANCE_EXISTS=true
+elif [ -f "/etc/openvpn/$INSTANCE.conf" ]; then
+    INSTANCE_EXISTS=true
+fi
+
+if [ "$INSTANCE_EXISTS" != "true" ]; then
+    if [ "$ACTION" != "upload" ]; then
+        echo '{"success":false,"error":"VPN instance does not exist"}'
+        exit 1
+    fi
+else
+    if [ "$ACTION" = "upload" ]; then
+        echo '{"success":false,"error":"VPN instance already exists! Please choose another name."}'
+        exit 1
+    fi
+fi
+
+if [ "$ACTION" = "upload" ]; then
+    DATA_B64="$(printf '%s' "$BODY" | jsonfilter -e '@.data_b64' 2>/dev/null)"
+    FILE_PATH="/etc/openvpn/$INSTANCE.ovpn"
+    printf '%s' "$DATA_B64" | base64 -d > "$FILE_PATH"
+    uci set openvpn."$INSTANCE"=openvpn
+    uci set openvpn."$INSTANCE".enabled='0'
+    uci set openvpn."$INSTANCE".config="$FILE_PATH"
+    uci commit openvpn
+    printf '{"success":true,"action":"upload","instance":"%s"}\n' "$INSTANCE"
+    exit 0
+fi
+
+# ------------------------------------------------------------
+# Xử lý lệnh READ
+# ------------------------------------------------------------
+if [ "$ACTION" = "read" ]; then
+    FILE_PATH="/etc/openvpn/$INSTANCE.ovpn"
+    if [ -f "$FILE_PATH" ]; then
+        # Nếu file tồn tại, đọc và mã hóa Base64
+        B64_DATA=$(cat "$FILE_PATH" | base64 | tr -d '\n' | tr -d '\r')
+        printf '{"success":true,"action":"read","instance":"%s","data_b64":"%s"}\n' "$INSTANCE" "$B64_DATA"
+    else
+        # Nếu file KHÔNG tồn tại, trả về success=true nhưng data_b64 rỗng
+        printf '{"success":true,"action":"read","instance":"%s","data_b64":""}\n' "$INSTANCE"
+    fi
+    exit 0
+fi
+
+if [ "$ACTION" = "write" ]; then
+    DATA_B64="$(printf '%s' "$BODY" | jsonfilter -e '@.data_b64' 2>/dev/null)"
+    FILE_PATH="/etc/openvpn/$INSTANCE.ovpn"
+    printf '%s' "$DATA_B64" | base64 -d > "$FILE_PATH"
+    printf '{"success":true,"action":"write","instance":"%s"}\n' "$INSTANCE"
+    exit 0
+fi
+
+if [ "$ACTION" = "delete" ]; then
+    /etc/init.d/openvpn stop "$INSTANCE" >/dev/null 2>&1
+    uci -q delete "openvpn.$INSTANCE"
+    uci commit openvpn
+    rm -f "/etc/openvpn/$INSTANCE.ovpn"
+    rm -f "/etc/openvpn/$INSTANCE.conf"
+    printf '{"success":true,"action":"delete","instance":"%s"}' "$INSTANCE"
+    exit 0
+fi
+
+LOG_FILE="/tmp/vpn-manager.log"
+
+/etc/init.d/openvpn "$ACTION" "$INSTANCE" >"$LOG_FILE" 2>&1
+RET=$?
+
+if [ "$RET" -ne 0 ]; then
+    ERROR="$(cat "$LOG_FILE" 2>/dev/null | tr '\n' ' ' | sed 's/"/\\"/g')"
+    echo "{\"success\":false,\"error\":\"OpenVPN command failed\",\"detail\":\"$ERROR\"}"
+    exit 1
+fi
+
+sleep 1
+
+SERVICE_JSON="$(ubus call service list '{"name":"openvpn","verbose":true}' 2>/dev/null)"
+RUNNING="$(printf '%s' "$SERVICE_JSON" | jsonfilter -e "@.openvpn.instances.$INSTANCE.running" 2>/dev/null)"
+
+if [ "$RUNNING" = "true" ]; then
+    RUNNING_JSON=true
+else
+    RUNNING_JSON=false
+fi
+
+printf '{"success":true,"action":"%s","instance":"%s","running":%s}' "$ACTION" "$INSTANCE" "$RUNNING_JSON"
+exit 0

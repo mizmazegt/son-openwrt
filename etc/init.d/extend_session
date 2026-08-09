@@ -1,0 +1,36 @@
+#!/bin/sh /etc/rc.common
+# Khởi động cùng hệ thống
+
+START=99
+
+start() {
+    local changed=0
+
+    # 1. Kiểm tra và sửa thời gian session của LuCI
+    local current_luci_timeout=$(uci -q get luci.sauth.sessiontime)
+    if [ "$current_luci_timeout" != "36000" ]; then
+        uci set luci.sauth.sessiontime='36000'
+        uci commit luci
+        changed=1
+        echo "Đã cập nhật sessiontime trong /etc/config/luci thành 36000"
+    fi
+
+    # 2. Kiểm tra và sửa thời gian timeout của rpcd (áp dụng cho section login đầu tiên)
+    local current_rpcd_timeout=$(uci -q get rpcd.@login[0].timeout)
+    if [ "$current_rpcd_timeout" != "36000" ]; then
+        uci set rpcd.@login[0].timeout='36000'
+        uci commit rpcd
+        changed=1
+        echo "Đã cập nhật timeout trong /etc/config/rpcd thành 36000"
+    fi
+
+    # 3. Khởi động lại dịch vụ nếu có sự thay đổi
+    if [ "$changed" -eq 1 ]; then
+        /etc/init.d/rpcd restart
+        # Xoá cache của LuCI để nhận cài đặt mới
+        rm -rf /tmp/luci-indexcache* /tmp/luci-modulecache* /tmp/luci-sessions/* 2>/dev/null
+        echo "Đã khởi động lại dịch vụ rpcd và xoá cache LuCI."
+    else
+        echo "Cấu hình đã ở mức 36000, không cần thay đổi."
+    fi
+}
