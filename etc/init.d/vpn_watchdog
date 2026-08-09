@@ -21,3 +21,8 @@ start_service() {
     
     procd_close_instance
 }
+
+stop_service() {
+    # Dọn dẹp sạch sẽ các tiến trình con do script sinh ra khi stop hoặc restart
+    killall inotifywait 2>/dev/null
+}
