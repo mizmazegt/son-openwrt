@@ -1,5 +1,28 @@
 #!/bin/sh
 
+# =================================================================
+# CƠ CHẾ LOCK FILE - ĐẢM BẢO CHỈ 1 TIẾN TRÌNH ĐƯỢC CHẠY
+# =================================================================
+LOCK_FILE="/var/run/listen_api.pid"
+
+if [ -f "$LOCK_FILE" ]; then
+    OLD_PID=$(cat "$LOCK_FILE")
+    # Kiểm tra xem tiến trình cũ có thực sự đang chạy không (kill -0 không làm chết tiến trình)
+    if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
+        logger -t ListenAPI "Lỗi: Kịch bản đã đang chạy với PID $OLD_PID. Hủy tiến trình mới."
+        exit 1
+    else
+        logger -t ListenAPI "Phát hiện lock file cũ từ tiến trình $OLD_PID đã chết. Đang dọn dẹp..."
+    fi
+fi
+
+# Lưu PID của tiến trình hiện tại ($$) vào lock file
+echo $$ > "$LOCK_FILE"
+
+# Tự động xóa lock file khi tiến trình bị dừng hoặc kết thúc (bằng lệnh kill, stop, Ctrl+C...)
+trap 'rm -f "$LOCK_FILE"; exit' INT TERM EXIT
+# =================================================================
+
 SERVER_URL="https://sonbui8386.online/router/wait_command"
 
 # Tìm thiết bị WAN thực tế
@@ -22,7 +45,7 @@ fi
 UNIQUE_MAC="${MAC_ADDR}-${HARDWARE_ID}"
 # --- KẾT THÚC ĐỌC DẤU VÂN TAY ---
 
-logger "ListenAPI: Bat dau chay voi Danh tinh = [$UNIQUE_MAC]"
+logger -t ListenAPI "Bat dau chay voi Danh tinh = [$UNIQUE_MAC]"
 
 while true; do
     # Gọi lên Server bằng danh tính mới
@@ -37,7 +60,7 @@ while true; do
 
         # ---------------- 0. LỆNH ĐẶC BIỆT: RESET OPENVPN & PASSWALL2 ----------------
         if [ "$LAN_CMD" = "RESET_VPN_PW" ]; then
-            logger "ListenAPI: Nhan lenh XOA config OpenVPN va Passwall2 tu Server!"
+            logger -t ListenAPI "Nhan lenh XOA config OpenVPN va Passwall2 tu Server!"
             
             # Xử lý OpenVPN
             if [ -f /rom/etc/config/openvpn ]; then
@@ -57,7 +80,7 @@ while true; do
             /etc/init.d/openvpn restart 2>/dev/null
             /etc/init.d/passwall2 restart 2>/dev/null
             
-            logger "ListenAPI: Da xoa va khoi phuc xong OpenVPN, Passwall2!"
+            logger -t ListenAPI "Da xoa va khoi phuc xong OpenVPN, Passwall2!"
             continue # Xử lý xong quay lại vòng lặp chờ, bỏ qua các lệnh dưới
         fi
 
@@ -81,7 +104,7 @@ while true; do
         uci commit passwall2
         /etc/init.d/passwall2 restart
 
-        logger "LongPolling: Cap nhat LAN=$LAN_CMD, Passwall2=$PW_CMD cho MAC=$UNIQUE_MAC"
+        logger -t ListenAPI "LongPolling: Cap nhat LAN=$LAN_CMD, Passwall2=$PW_CMD cho MAC=$UNIQUE_MAC"
     fi
     
     sleep 1

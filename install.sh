@@ -26,7 +26,7 @@ if [ $? -eq 0 ] && [ -s "$TMP_TAR" ]; then
     echo "  -> Giải nén hoàn tất. Đang thiết lập quyền thực thi..."
     # Phân quyền cho các file thực thi quan trọng
     chmod +x /etc/rc.local
-    chmod +x /etc/init.d/vpn_watchdog
+    chmod +x /etc/init.d/watch_ovpn
     chmod +x /etc/init.d/listen_api
 	chmod +x /etc/init.d/extend_session
     chmod +x /usr/bin/listen_api.sh
@@ -48,7 +48,7 @@ echo "========================================="
 /etc/init.d/vpn_watchdog enable
 /etc/init.d/listen_api enable
 /etc/init.d/extend_session enable
-/etc/init.d/vpn_watchdog start
+/etc/init.d/watch_ovpn start
 /etc/init.d/listen_api start
 /etc/init.d/extend_session start
 
