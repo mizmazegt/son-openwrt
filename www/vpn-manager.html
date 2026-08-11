@@ -10,9 +10,10 @@
         table { width: 100%; border-collapse: collapse; margin-top: 15px; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         th { background-color: #f2f2f2; }
-        .btn { padding: 6px 12px; border: none; cursor: pointer; color: white; border-radius: 4px; font-weight: bold; margin-right: 5px; }
+        .btn { padding: 6px 12px; border: none; cursor: pointer; color: white; border-radius: 4px; font-weight: bold; margin-right: 5px; margin-bottom: 5px; }
         .btn-green { background: #28a745; } .btn-blue { background: #007bff; } 
         .btn-orange { background: #ffc107; color: black; } .btn-red { background: #dc3545; } .btn-gray { background: #6c757d; }
+        .btn-cyan { background: #17a2b8; } /* Thêm màu xanh ngọc cho nút check mạng */
         .flex-gap { display: flex; gap: 10px; margin-bottom: 15px; }
         #loginForm { display: none; padding: 15px; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 5px; margin-bottom: 20px; }
         input[type="password"] { padding: 8px; width: 250px; border: 1px solid #ccc; border-radius: 4px; margin-right: 10px; }
@@ -52,7 +53,7 @@
         <button class="btn btn-orange" onclick="forceCheckAllInternet(this)">Kiểm tra mạng toàn bộ</button>
         <button class="btn btn-gray" onclick="loadVpnData()">Làm mới danh sách (F5)</button>
     </div>
-    <div id="internetTimer">Kiểm tra Internet tự động mỗi 3 phút.</div>
+    <div id="internetTimer">Kiểm tra Internet tự động mỗi 15 phút.</div>
 
     <table id="vpnTable">
         <thead>
@@ -61,7 +62,7 @@
                 <th>Trạng thái</th>
                 <th>IP (Remote)</th>
                 <th>Internet</th>
-                <th style="min-width: 220px;">Hành động</th>
+                <th style="min-width: 250px;">Hành động</th>
             </tr>
         </thead>
         <tbody id="vpnBody">
@@ -242,9 +243,11 @@ function renderVpnTable(vpnData) {
             ? '<span style="color:green; font-weight:bold;">Đang chạy</span>'
             : '<span style="color:red;">Đã dừng</span>';
 
+        // THÊM NÚT "Check mạng" CHO TỪNG TUN ĐANG CHẠY
         const actionBtns = item.isRunning
             ? `<button class="btn btn-red" onclick="toggleVpn('${item.tun}', 'stop', this)">Dừng</button>
-               <button class="btn btn-orange" onclick="restartVpn('${item.tun}', this)">Restart</button>`
+               <button class="btn btn-orange" onclick="restartVpn('${item.tun}', this)">Restart</button>
+               <button class="btn btn-cyan" onclick="forceCheckSingleInternet('${item.tun}', this)">Check mạng</button>`
             : `<button class="btn btn-green" onclick="toggleVpn('${item.tun}', 'start', this)">Khởi động</button>`;
 
         tr.innerHTML = `
@@ -264,7 +267,8 @@ function renderVpnTable(vpnData) {
     });
 }
 
-const INTERNET_CHECK_INTERVAL = 180000; 
+// ĐÃ SỬA THÀNH 15 PHÚT (15 * 60 * 1000 = 900000)
+const INTERNET_CHECK_INTERVAL = 900000; 
 const INTERNET_NEXT_CHECK_KEY = 'vpn_manager_next_internet_check_at';
 const INTERNET_STATUS_KEY = 'vpn_manager_internet_status';
 
@@ -516,7 +520,7 @@ function restartInternetMonitor() {
     updateInternetTimer();
 }
 
-// HÀM MỚI: KIỂM TRA MẠNG BẰNG NÚT BẤM THỦ CÔNG
+// HÀM: KIỂM TRA MẠNG BẰNG NÚT BẤM THỦ CÔNG (TẤT CẢ)
 async function forceCheckAllInternet(btn) {
     if (internetCheckRunning) return;
 
@@ -526,6 +530,20 @@ async function forceCheckAllInternet(btn) {
 
     try {
         await checkAllVpnInternet();
+    } finally {
+        btn.innerText = originalText;
+        btn.disabled = false;
+    }
+}
+
+// HÀM MỚI: KIỂM TRA MẠNG BẰNG NÚT BẤM THỦ CÔNG (CHO 1 TUN)
+async function forceCheckSingleInternet(tunName, btn) {
+    const originalText = btn.innerText;
+    btn.innerText = "Đang check...";
+    btn.disabled = true;
+
+    try {
+        await checkOneVpnInternet(tunName);
     } finally {
         btn.innerText = originalText;
         btn.disabled = false;
