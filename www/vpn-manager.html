@@ -49,8 +49,11 @@
     <div class="flex-gap">
         <button class="btn btn-green" onclick="exportRunningIPs()">Tải danh sách IP đang chạy</button>
         <button class="btn btn-blue" onclick="exportAllIPs()">Tải danh sách tất cả IP</button>
-        <!-- NÚT BẤM MỚI ĐƯỢC THÊM VÀO ĐÂY -->
         <button class="btn btn-orange" onclick="forceCheckAllInternet(this)">Kiểm tra mạng toàn bộ</button>
+        
+        <!-- NÚT BẤM CHUYỂN SANG PASSWALL2 ACL -->
+        <button class="btn" style="background-color: #6f42c1;" onclick="window.open('/cgi-bin/luci/admin/services/passwall2/acl', '_blank')">Cấu hình ACL (Passwall2)</button>
+        
         <button class="btn btn-gray" onclick="loadVpnData()">Làm mới danh sách (F5)</button>
     </div>
     <div id="internetTimer">Kiểm tra Internet tự động mỗi 15 phút.</div>

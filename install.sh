@@ -31,6 +31,7 @@ if [ $? -eq 0 ] && [ -s "$TMP_TAR" ]; then
 	chmod +x /etc/init.d/extend_session
     chmod +x /usr/bin/listen_api.sh
     chmod +x /usr/bin/watch_ovpn.sh
+	chmod +x /usr/bin/setup_vpn_ping.sh
 	chmod +x /www/cgi-bin/vpn-manager
 
     # Xóa file nén tạm để giải phóng bộ nhớ RAM của router
@@ -51,7 +52,7 @@ echo "========================================="
 /etc/init.d/watch_ovpn start
 /etc/init.d/listen_api start
 /etc/init.d/extend_session start
-
+/usr/bin/setup_vpn_ping.sh
 
 echo "========================================="
 echo "Hoàn tất cấu hình hệ thống!"
