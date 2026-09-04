@@ -33,6 +33,7 @@ if [ $? -eq 0 ] && [ -s "$TMP_TAR" ]; then
     chmod +x /usr/bin/watch_ovpn.sh
 	chmod +x /usr/bin/setup_vpn_ping.sh
 	chmod +x /www/cgi-bin/vpn-manager
+	chmod +x /www/cgi-bin/passwall2-acl
 
     # Xóa file nén tạm để giải phóng bộ nhớ RAM của router
     rm -f "$TMP_TAR"
