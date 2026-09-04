@@ -171,7 +171,7 @@ cat <<HTMLHEAD
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Passwall2 - ACL Rules</title>
+<title>Cấu hình thiết bị - ACL Rules</title>
 <style>
   html, body { background: transparent !important; color-scheme: dark; margin: 0; padding: 0; }
   body { font-family: Arial, Helvetica, sans-serif; padding: 15px; color: #d1d5db; }
