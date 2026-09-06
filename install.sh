@@ -47,7 +47,7 @@ fi
 echo "========================================="
 echo "3. Kích hoạt và khởi động lại dịch vụ..."
 echo "========================================="
-/etc/init.d/vpn_watchdog enable
+/etc/init.d/watch_ovpn enable
 /etc/init.d/listen_api enable
 /etc/init.d/extend_session enable
 /etc/init.d/watch_ovpn start
