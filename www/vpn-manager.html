@@ -206,6 +206,60 @@ function setVpnTableMessage(msg, isError) {
     document.getElementById('vpnTable').appendChild(row);
 }
 
+// --- HÀM MỚI: Đọc nội dung file .ovpn qua CGI (không qua ubus ACL) và bóc IP remote ---
+// Sửa lỗi: trước đây IP luôn ra "N/A" vì code gọi thẳng `ubus call file read`
+// bằng session đăng nhập qua session.login (root) — session này thường bị
+// rpcd ACL chặn quyền đọc file tùy ý (object "file" không có trong ACL mặc định),
+// nên request bị "Permission denied" và rơi vào catch{} rỗng, ko log gì cả.
+// Modal "Sửa" vẫn đọc được vì nó dùng /cgi-bin/vpn-manager (script CGI chạy
+// quyền root riêng, không đi qua ubus ACL) => ta dùng lại đúng con đường đó
+// để lấy IP, đồng thời log lỗi rõ ràng ra console để dễ debug về sau.
+async function fetchVpnRemoteIp(tunName) {
+    try {
+        const res = await fetch("/cgi-bin/vpn-manager", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ instance: tunName, action: "read" })
+        });
+
+        if (!res.ok) {
+            console.error(`[IP] ${tunName}: HTTP ${res.status} khi gọi /cgi-bin/vpn-manager (action=read)`);
+            return "N/A";
+        }
+
+        const result = await res.json();
+
+        if (!result || result.success !== true) {
+            console.error(`[IP] ${tunName}: CGI trả về lỗi hoặc success=false ->`, result);
+            return "N/A";
+        }
+
+        if (!result.data_b64) {
+            console.warn(`[IP] ${tunName}: Không có data_b64 trong phản hồi (file rỗng hoặc không tồn tại) ->`, result);
+            return "N/A";
+        }
+
+        let decoded;
+        try {
+            decoded = decodeURIComponent(escape(window.atob(result.data_b64)));
+        } catch (decodeErr) {
+            console.error(`[IP] ${tunName}: Lỗi giải mã base64 nội dung file .ovpn`, decodeErr);
+            return "N/A";
+        }
+
+        const match = decoded.match(/^\s*remote\s+([^\s]+)/m);
+        if (!match) {
+            console.warn(`[IP] ${tunName}: Không tìm thấy dòng "remote ..." trong nội dung file .ovpn`);
+            return "N/A";
+        }
+
+        return match[1];
+    } catch (e) {
+        console.error(`[IP] ${tunName}: Lỗi khi fetch/parse file .ovpn qua vpn-manager`, e);
+        return "N/A";
+    }
+}
+
 async function loadVpnData() {
     try {
         setVpnTableMessage('Đang lấy cấu hình...', false);
@@ -214,6 +268,7 @@ async function loadVpnData() {
         if (!uciRes.result || typeof uciRes.result[1] !== 'object') {
             document.getElementById('loginForm').style.display = 'block';
             setVpnTableMessage('Chưa xác thực. Vui lòng nhập mật khẩu router ở trên.', true);
+            console.error('[loadVpnData] uci get openvpn thất bại hoặc chưa đăng nhập ->', uciRes);
             return;
         }
 
@@ -222,6 +277,8 @@ async function loadVpnData() {
 
         if (serviceRes.result && serviceRes.result[1] && serviceRes.result[1].openvpn && serviceRes.result[1].openvpn.instances) {
             activeInstances = serviceRes.result[1].openvpn.instances;
+        } else {
+            console.warn('[loadVpnData] Không lấy được danh sách service openvpn đang chạy ->', serviceRes);
         }
 
         const configs = uciRes.result[1].values;
@@ -242,14 +299,7 @@ async function loadVpnData() {
         const savedInternet = getSavedInternetStates();
 
         const vpnData = await Promise.all(vpnList.map(async (tun) => {
-            let ip = "N/A";
-            try {
-                const fileRes = await callUbus('call', 'file', 'read', { path: `/etc/openvpn/${tun}.ovpn` });
-                if (fileRes.result && fileRes.result[1] && fileRes.result[1].data) {
-                    const match = fileRes.result[1].data.match(/^\s*remote\s+([^\s]+)/m);
-                    if (match) ip = match[1];
-                }
-            } catch (e) { }
+            const ip = await fetchVpnRemoteIp(tun);
 
             const isRunning = !!activeInstances[tun] && activeInstances[tun].running === true;
             let internet = isRunning ? (savedInternet[tun] || "unknown") : "stopped";
@@ -263,6 +313,7 @@ async function loadVpnData() {
     } catch (error) {
         document.getElementById('loginForm').style.display = 'block';
         setVpnTableMessage('Lỗi tải dữ liệu. Vui lòng đăng nhập lại.', true);
+        console.error('[loadVpnData] Lỗi không mong muốn:', error);
     }
 }
 
@@ -392,6 +443,7 @@ async function checkAllVpnInternet() {
         document.querySelectorAll('#vpnTable .tr[data-tun]').forEach(row => {
             if (row.getAttribute('data-running') === 'true') updateInternetCell(row.getAttribute('data-tun'), 'offline');
         });
+        console.error('[checkAllVpnInternet] Lỗi khi kiểm tra internet toàn bộ:', error);
     } finally {
         internetCheckRunning = false;
         updateInternetTimer();
@@ -422,6 +474,7 @@ async function checkOneVpnInternet(tunName) {
             updateInternetCell(tunName, 'offline');
             saveInternetState(tunName, 'offline');
         }
+        console.error(`[checkOneVpnInternet] Lỗi khi kiểm tra internet cho ${tunName}:`, error);
     }
 }
 
