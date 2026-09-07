@@ -133,9 +133,15 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
   fi
 
   if [ -z "$ERR" ]; then
-    # Luôn dùng uci set (kể cả khi rỗng) để giữ nguyên rule và option "sources",
-    # chỉ lưu giá trị rỗng thay vì xoá hẳn option (tránh làm mất rule khi service reload).
-    uci set "${PKG}.${SECTION}.sources=${SOURCES}" >/dev/null 2>&1
+    # "sources" giờ là "list" (nhiều dòng, mỗi dòng 1 MAC) thay vì "option" (1 dòng nhiều MAC).
+    # Xoá toàn bộ list cũ trước, sau đó add_list lại từng MAC một -> mỗi MAC thành 1 dòng
+    # "list sources '...'" riêng biệt trong file cấu hình.
+    uci delete "${PKG}.${SECTION}.sources" >/dev/null 2>&1
+    if [ -n "$SOURCES" ]; then
+      for mac in $SOURCES; do
+        uci add_list "${PKG}.${SECTION}.sources=${mac}" >/dev/null 2>&1
+      done
+    fi
 
     uci commit "$PKG" >/dev/null 2>&1
     ( [ -x /etc/init.d/passwall2 ] && /etc/init.d/passwall2 reload >/dev/null 2>&1 ) &
@@ -512,6 +518,25 @@ insection == 1 && /^[ \t]+option[ \t]+/ {
   ok[cur, oc[cur]] = optname
   next
 }
+insection == 1 && /^[ \t]+list[ \t]+/ {
+  # list sources chua 1 MAC tren 1 dong rieng, thay cho option sources cu
+  # gop nhieu MAC tren 1 dong. Gop lai thanh chuoi cach nhau bang khoang trang
+  # trong listsrc[cur] de phan hien thi/JS ben duoi khong can doi gi them.
+  line = $0
+  sub(/^[ \t]+list[ \t]+/, "", line)
+  sp = index(line, " ")
+  if (sp == 0) next
+  optname = substr(line, 1, sp-1)
+  optval = substr(line, sp+1)
+  gsub(/^[ \t]+/, "", optval)
+  if (substr(optval,1,1) == sq) {
+    optval = substr(optval, 2, length(optval)-2)
+  }
+  if (optname == "sources") {
+    listsrc[cur] = (listsrc[cur] == "" ? optval : listsrc[cur] " " optval)
+  }
+  next
+}
 END {
   if (n == 0) {
     print "<div class=\"hint-empty\">Không tìm thấy mục cấu hình acl_rule nào.</div>"
@@ -525,7 +550,9 @@ END {
     remarks = data[s,"remarks"]; if (remarks=="") remarks="-"
     enabled = data[s,"enabled"]
     if (enabled=="1") enh="<span class=\"badge-on\">Đang bật</span>"; else enh="<span class=\"badge-off\">Đã tắt</span>"
-    rawsrc = data[s,"sources"]
+    # Ưu tiên dữ liệu từ "list sources" (định dạng mới, nhiều dòng); nếu không có
+    # thì fallback về "option sources" cũ (1 dòng nhiều MAC) để tương thích ngược.
+    rawsrc = (listsrc[s] != "" ? listsrc[s] : data[s,"sources"])
     rowclass = (s==savedid) ? " class=\"row-saved\"" : ""
 
     inputid = "src_" s
