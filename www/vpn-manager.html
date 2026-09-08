@@ -78,6 +78,7 @@ header h3 a,header .brand{display:none!important}@media screen and (max-device-w
                 <button class="cbi-button cbi-button-download" onclick="exportAllIPs()">Tải danh sách tất cả IP</button>
                 <button class="cbi-button cbi-button-warning important" onclick="forceCheckAllInternet(this)">Kiểm tra mạng toàn bộ</button>
                 <button class="cbi-button cbi-button-reload" onclick="loadVpnData()">Làm mới danh sách (F5)</button>
+                <button class="cbi-button cbi-button-negative important" onclick="stopAllVpn(this)">Dừng toàn bộ VPN</button>
             </div>
             <p id="internetTimer">Kiểm tra Internet tự động mỗi 15 phút.</p>
 
@@ -570,6 +571,39 @@ async function toggleVpn(tunName, action, btn) {
         }
     } catch (error) {
         alert('Lỗi: ' + error.message);
+    } finally {
+        setTimeout(() => { btn.innerText = originalText; btn.disabled = false; }, 1200);
+    }
+}
+
+async function stopAllVpn(btn) {
+    if (!confirm('Bạn có chắc muốn dừng TOÀN BỘ các VPN (tun) đang chạy không?')) return;
+
+    const originalText = btn.innerText;
+    btn.innerText = 'Đang dừng toàn bộ...';
+    btn.disabled = true;
+
+    try {
+        const res = await fetch('/cgi-bin/vpn-manager', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ action: 'stopall' }), cache: 'no-store'
+        });
+
+        let result = null;
+        try { result = await res.json(); } catch (e) { /* bỏ qua nếu response không phải JSON */ }
+
+        if (!res.ok || !result || result.success !== true) {
+            const detail = result && (result.detail || result.error) ? (result.detail || result.error) : `HTTP ${res.status}`;
+            alert('Dừng toàn bộ VPN thất bại: ' + detail);
+            console.error('[stopAllVpn] Lỗi ->', result);
+        }
+
+        await loadVpnData();
+        restartInternetMonitor();
+    } catch (error) {
+        alert('Lỗi kết nối khi dừng toàn bộ VPN: ' + error.message);
+        console.error('[stopAllVpn] Lỗi không mong muốn:', error);
     } finally {
         setTimeout(() => { btn.innerText = originalText; btn.disabled = false; }, 1200);
     }

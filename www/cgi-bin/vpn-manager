@@ -94,6 +94,26 @@ if [ "$ACTION" = "internet" ]; then
 fi
 
 # ============================================================
+# STOP ALL (dừng toàn bộ các instance OpenVPN đang chạy)
+# ============================================================
+
+if [ "$ACTION" = "stopall" ]; then
+    LOG_FILE="/tmp/vpn-manager-stopall.log"
+
+    /etc/init.d/openvpn stop >"$LOG_FILE" 2>&1
+    RET=$?
+
+    if [ "$RET" -ne 0 ]; then
+        ERROR="$(cat "$LOG_FILE" 2>/dev/null | tr '\n' ' ' | sed 's/"/\\"/g')"
+        echo "{\"success\":false,\"error\":\"OpenVPN stop all command failed\",\"detail\":\"$ERROR\"}"
+        exit 1
+    fi
+
+    printf '{"success":true,"action":"stopall"}'
+    exit 0
+fi
+
+# ============================================================
 # START / STOP / RESTART / UPLOAD / READ / WRITE / DELETE
 # ============================================================
 
