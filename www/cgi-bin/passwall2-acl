@@ -221,6 +221,15 @@ cat <<HTMLHEAD
   .remove-mac { cursor: pointer; margin-left: auto; font-size: 12px; filter: grayscale(1); transition: 0.2s; padding: 4px 8px; background: #333333; border-radius: 4px; border: 1px solid #4a4a4a; font-weight: bold; color: #d1d5db; }
   .remove-mac:hover { filter: grayscale(0); background: rgba(209,86,83,0.15); border-color: #bf4e4c; color: #f3a6a4; }
 
+  /* CẢI TIẾN: trạng thái "chờ xóa" - thiết bị đã đánh dấu xóa nhưng chưa bấm Lưu */
+  .pending-remove { border-style: dashed !important; border-color: #bf4e4c !important; opacity: 0.55; }
+  .pending-remove .hint-mac,
+  .pending-remove .hint-ip,
+  .pending-remove .hint-name { text-decoration: line-through; }
+  .pending-remove-badge { color: #f3a6a4; font-size: 12px; font-weight: 600; background: rgba(209,86,83,0.15); padding: 2px 10px; border-radius: 12px; border: 1px solid rgba(209,86,83,0.4); }
+  .pending-remove .remove-mac { filter: none; background: rgba(77,161,192,0.15); border-color: #4da1c0; color: #7dd3fc; }
+  .pending-remove .remove-mac:hover { background: rgba(77,161,192,0.25); }
+
   .hint-empty { color: #d8c690; font-size: 13px; background: rgba(166,148,97,0.15); padding: 6px 12px; border-radius: 6px; border: 1px solid rgba(166,148,97,0.4); font-style: italic; }
 
   .edit-form { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
@@ -274,12 +283,43 @@ function getPendingMacs(ruleId) {
   return macs;
 }
 
+// Lấy danh sách MAC đã có sẵn (đã lưu) nhưng vừa được đánh dấu "sẽ xóa" (chưa bấm Lưu)
+function getPendingRemoveMacs(ruleId) {
+  var allChips = document.querySelectorAll('.hint-item.pending-remove');
+  var macs = [];
+  var prefix = 'chip_' + ruleId + '_';
+  for (var i = 0; i < allChips.length; i++) {
+    var chip = allChips[i];
+    if (chip.id.indexOf(prefix) === 0) {
+      var mac = chip.getAttribute('data-mac');
+      if (mac) macs.push(mac);
+    }
+  }
+  return macs;
+}
+
 // Gộp MAC gõ tay (trong ô nhập) + MAC từ các chip chờ lưu thành 1 chuỗi MAC-only
-// rồi ghi đè vào chính ô nhập (name="new_sources") ngay trước khi submit,
-// đảm bảo dữ liệu gửi lên server luôn chỉ chứa địa chỉ MAC.
+// rồi ghi đè vào chính ô nhập (name="new_sources"), đồng thời loại bỏ khỏi ô "sources"
+// (hidden input) những MAC đã được đánh dấu "sẽ xóa" - tất cả đều thực hiện NGAY
+// TRƯỚC KHI submit, đảm bảo việc thêm/xóa chỉ thực sự ghi vào file cấu hình khi bấm Lưu.
 function syncNewSourcesField(ruleId) {
   var input = document.getElementById('src_' + ruleId);
-  if (!input) return;
+  var hiddenInput = document.getElementById('hidden_' + ruleId);
+  if (!input || !hiddenInput) return;
+
+  // 1) Loại các MAC đã đánh dấu "sẽ xóa" ra khỏi danh sách gốc (sources)
+  var originalList = hiddenInput.value.trim().length ? hiddenInput.value.trim().split(/\s+/) : [];
+  var pendingRemove = getPendingRemoveMacs(ruleId);
+  var removeSet = {};
+  for (var i = 0; i < pendingRemove.length; i++) {
+    removeSet[pendingRemove[i].toUpperCase()] = true;
+  }
+  var keptList = originalList.filter(function (m) {
+    return !removeSet[m.toUpperCase()];
+  });
+  hiddenInput.value = keptList.join(' ');
+
+  // 2) Gộp MAC gõ tay + MAC từ chip "chờ thêm" vào ô new_sources
   var manual = input.value.trim();
   var manualList = manual.length ? manual.split(/\s+/) : [];
   var pending = getPendingMacs(ruleId);
@@ -297,28 +337,47 @@ function syncNewSourcesField(ruleId) {
   input.value = uniq.join(' ');
 }
 
-// CẢI TIẾN LỚN: Tìm chính xác form thông qua Form ID để submit
+// CẢI TIẾN: Bỏ thiết bị khỏi danh sách giờ chỉ ĐÁNH DẤU "chờ xóa" trên giao diện
+// (không submit form ngay, không đụng tới file cấu hình). Bấm lần nữa (Hoàn tác)
+// sẽ hủy đánh dấu. Chỉ khi người dùng bấm nút "💾 Lưu" thì thay đổi mới thực sự
+// được gửi lên server và ghi vào /etc/config/passwall2.
 function removeMac(ruleId, mac) {
-  if (confirm("Xác nhận BỎ thiết bị " + mac + " khỏi danh sách?")) {
-    var hiddenInput = document.getElementById('hidden_' + ruleId);
-    var targetForm = document.getElementById('form_' + ruleId);
+  var safemac = mac.replace(/:/g, '');
+  var chipEl = document.getElementById('chip_' + ruleId + '_' + safemac);
+  if (!chipEl) {
+    alert("Lỗi: Không tìm thấy thiết bị để đánh dấu xóa.");
+    return;
+  }
 
-    if (hiddenInput && targetForm) {
-      var list = hiddenInput.value.trim().split(/\s+/);
-      var newList = list.filter(function(m) {
-        return m.toUpperCase() !== mac.toUpperCase();
-      });
-      hiddenInput.value = newList.join(' ');
+  var isPendingRemove = chipEl.classList.contains('pending-remove');
 
-      // form.submit() không tự phát sinh sự kiện 'submit', nên gộp MAC thủ công tại đây
-      // để không làm mất các thiết bị vừa chọn từ dropdown nhưng chưa bấm Lưu.
-      syncNewSourcesField(ruleId);
-
-      // Bấm lệnh Gửi (Submit)
-      targetForm.submit();
-    } else {
-      alert("Lỗi: Không tìm thấy form để gửi dữ liệu.");
+  if (!isPendingRemove) {
+    if (!confirm("Đánh dấu BỎ thiết bị " + mac + " khỏi danh sách?\n(Thay đổi chỉ được lưu thật sự khi bạn bấm nút \"Lưu\")")) {
+      return;
     }
+    chipEl.classList.add('pending-remove');
+    chipEl.setAttribute('data-mac', mac);
+    var btn = chipEl.querySelector('.remove-mac');
+    if (btn) {
+      btn.textContent = '↩️ Hoàn tác';
+      btn.title = 'Hủy đánh dấu xóa, giữ lại thiết bị này';
+    }
+    if (!chipEl.querySelector('.pending-remove-badge')) {
+      var badge = document.createElement('span');
+      badge.className = 'pending-remove-badge';
+      badge.textContent = '🗑️ Sẽ xóa (chưa lưu)';
+      chipEl.appendChild(badge);
+    }
+  } else {
+    // Hoàn tác: bỏ đánh dấu "sẽ xóa"
+    chipEl.classList.remove('pending-remove');
+    var btn2 = chipEl.querySelector('.remove-mac');
+    if (btn2) {
+      btn2.textContent = '❌ Bỏ';
+      btn2.title = 'Xóa thiết bị này khỏi danh sách';
+    }
+    var badge2 = chipEl.querySelector('.pending-remove-badge');
+    if (badge2) badge2.parentNode.removeChild(badge2);
   }
 }
 
@@ -401,7 +460,8 @@ function addDeviceTo(selectEl) {
   selectEl.selectedIndex = 0;
 }
 
-// Gắn sự kiện submit cho từng form để gộp MAC (gõ tay + chip chờ lưu) trước khi gửi đi
+// Gắn sự kiện submit cho từng form để gộp MAC (gõ tay + chip chờ lưu, và loại bỏ
+// các MAC đã đánh dấu "sẽ xóa") trước khi gửi đi
 function attachFormSyncHandlers() {
   var forms = document.querySelectorAll('form[id^="form_"]');
   for (var i = 0; i < forms.length; i++) {
@@ -579,7 +639,9 @@ END {
         # Thêm nut onclick goi javascript (dung bien sq thay vi dau nhay don truc tiep,
         # vi ca khoi awk nay dang nam trong cap dau nhay don cua shell)
         lbl = lbl "<span class=\"remove-mac\" onclick=\"removeMac(" sq s sq ", " sq mc sq ")\" title=\"Xóa thiết bị này khỏi danh sách\">❌ Bỏ</span>"
-        hint = hint "<div class=\"hint-item\" id=\"" chipid "\">" lbl "</div>"
+        # data-mac dung de JS (syncNewSourcesField / getPendingRemoveMacs) doc lai MAC
+        # khi chip nay bi danh dau "cho xoa"
+        hint = hint "<div class=\"hint-item\" id=\"" chipid "\" data-mac=\"" mc "\">" lbl "</div>"
       }
     }
 
