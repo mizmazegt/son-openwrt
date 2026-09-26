@@ -16,12 +16,19 @@ while read -r directory events filename; do
             FILE_PATH="/etc/openvpn/$filename"
             [ ! -f "$FILE_PATH" ] && continue
 
-            # Bước 1: Xử lý thay đổi "dev tun" trong file .ovpn
-            if grep -E -q "^dev tun[[:space:]]*$" "$FILE_PATH"; then
-                logger -t OpenVPN-Watchdog "Phat hien 'dev tun' goc trong $filename. Dang chuyen thanh 'dev $INSTANCE'..."
-                sed -i "s/^dev tun[[:space:]]*$/dev $INSTANCE/" "$FILE_PATH"
+           # Bước 1: Chuẩn hóa dòng "dev" theo tên instance (vd: tun1.ovpn -> dev tun1)
+            if grep -Eq "^dev[[:space:]]+" "$FILE_PATH"; then
+                # Đã có dòng dev (dev tun, dev tun2, dev tun22, ...) -> ép về dev $INSTANCE
+                if ! grep -Eq "^dev[[:space:]]+$INSTANCE[[:space:]]*$" "$FILE_PATH"; then
+                    logger -t OpenVPN-Watchdog "$filename co dong dev khac instance. Dang doi thanh 'dev $INSTANCE'..."
+                    sed -i -E "s/^dev[[:space:]]+tun[0-9]*[[:space:]]*$/dev $INSTANCE/" "$FILE_PATH"
+                fi
+            else
+                # Chưa có dòng dev nào -> thêm vào đầu file
+                logger -t OpenVPN-Watchdog "$filename chua co dong dev. Dang them 'dev $INSTANCE'..."
+                { echo "dev $INSTANCE"; cat "$FILE_PATH"; } > "${FILE_PATH}.tmp" \
+                    && mv "${FILE_PATH}.tmp" "$FILE_PATH"
             fi
-
             # Bước 1.5: Kiểm tra và chèn data-ciphers / route-nopull nếu thiếu
             NEED_CIPHERS=0
             NEED_NOPULL=0
