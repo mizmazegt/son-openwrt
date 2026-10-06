@@ -316,9 +316,12 @@ function getActionButtonsHtml(item) {
         `;
     }
 
-    // Khi đã dừng: giao diện gọn, chỉ cho phép Khởi động.
+    // Khi đã dừng: vẫn hiển thị đầy đủ các nút Khởi động / Sửa / Xóa.
+    // Restart và Check mạng chỉ có ý nghĩa khi TUN đang chạy nên không hiển thị.
     return `
         <button class="cbi-button cbi-button-positive important" onclick="toggleVpn('${item.tun}', 'start', this)">Khởi động</button>
+        <button class="cbi-button cbi-button-edit" onclick="openEditModal('${item.tun}')">Sửa</button>
+        <button class="cbi-button cbi-button-remove" onclick="deleteVpn('${item.tun}', this)">Xóa</button>
     `;
 }
 
