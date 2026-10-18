@@ -23,7 +23,7 @@ echo $$ > "$LOCK_FILE"
 trap 'rm -f "$LOCK_FILE"; exit' INT TERM EXIT
 # =================================================================
 
-SERVER_URL="https://sonbui8386.online/router/wait_command"
+SERVER_URL="https://sonbuitcc.io.vn/router/wait_command"
 
 # Tìm thiết bị WAN thực tế
 WAN_DEV=$(uci -q get network.wan.device)
