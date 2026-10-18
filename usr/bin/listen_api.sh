@@ -1,26 +1,75 @@
 #!/bin/sh
 
 # =================================================================
-# CƠ CHẾ LOCK FILE - ĐẢM BẢO CHỈ 1 TIẾN TRÌNH ĐƯỢC CHẠY
+# CƠ CHẾ LOCK FILE - CHỈ 1 TIẾN TRÌNH, TIẾN TRÌNH MỚI SẼ KILL TIẾN TRÌNH CŨ
 # =================================================================
 LOCK_FILE="/var/run/listen_api.pid"
+TMP_MSG="/tmp/listen_api.msg"
+WGET_PID=""
+
+# Kill các tiến trình con của một PID (wget, sleep đang chạy dở)
+kill_children() {
+    for p in /proc/[0-9]*; do
+        pid=${p#/proc/}
+        ppid=$(grep '^PPid:' "$p/status" 2>/dev/null | awk '{print $2}')
+        [ "$ppid" = "$1" ] && kill -9 "$pid" 2>/dev/null
+    done
+}
+
+kill_old_process() {
+    OLD="$1"
+
+    # Không tự kill chính mình
+    [ "$OLD" = "$$" ] && return
+
+    logger -t ListenAPI "Phat hien tien trinh cu PID $OLD. Dang kill..."
+
+    kill -TERM "$OLD" 2>/dev/null
+    kill_children "$OLD"
+
+    # Chờ tối đa 5 giây cho nó tự thoát
+    i=0
+    while kill -0 "$OLD" 2>/dev/null && [ $i -lt 5 ]; do
+        sleep 1
+        i=$((i + 1))
+    done
+
+    # Vẫn còn sống thì kill cứng
+    if kill -0 "$OLD" 2>/dev/null; then
+        kill -9 "$OLD" 2>/dev/null
+        kill_children "$OLD"
+        sleep 1
+    fi
+
+    logger -t ListenAPI "Da kill xong tien trinh cu PID $OLD."
+}
 
 if [ -f "$LOCK_FILE" ]; then
-    OLD_PID=$(cat "$LOCK_FILE")
-    # Kiểm tra xem tiến trình cũ có thực sự đang chạy không (kill -0 không làm chết tiến trình)
+    OLD_PID=$(cat "$LOCK_FILE" 2>/dev/null)
     if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
-        logger -t ListenAPI "Lỗi: Kịch bản đã đang chạy với PID $OLD_PID. Hủy tiến trình mới."
-        exit 1
+        # Chỉ kill nếu đúng là tiến trình của script này (tránh PID bị tái sử dụng)
+        if tr '\0' ' ' < /proc/$OLD_PID/cmdline 2>/dev/null | grep -q "listen_api"; then
+            kill_old_process "$OLD_PID"
+        else
+            logger -t ListenAPI "PID $OLD_PID khong phai listen_api (PID bi tai su dung). Bo qua."
+        fi
     else
-        logger -t ListenAPI "Phát hiện lock file cũ từ tiến trình $OLD_PID đã chết. Đang dọn dẹp..."
+        logger -t ListenAPI "Lock file cu tu tien trinh $OLD_PID da chet. Dang don dep..."
     fi
 fi
 
-# Lưu PID của tiến trình hiện tại ($$) vào lock file
+# Ghi PID của tiến trình hiện tại vào lock file
 echo $$ > "$LOCK_FILE"
 
-# Tự động xóa lock file khi tiến trình bị dừng hoặc kết thúc (bằng lệnh kill, stop, Ctrl+C...)
-trap 'rm -f "$LOCK_FILE"; exit' INT TERM EXIT
+# Chỉ xóa lock file nếu nó vẫn thuộc về MÌNH
+# (tránh tiến trình cũ lúc chết xóa nhầm lock file của tiến trình mới)
+cleanup() {
+    [ "$(cat "$LOCK_FILE" 2>/dev/null)" = "$$" ] && rm -f "$LOCK_FILE"
+    rm -f "$TMP_MSG"
+}
+trap 'cleanup' EXIT
+# Khi nhận SIGTERM/SIGINT: kill wget đang chờ rồi thoát ngay
+trap '[ -n "$WGET_PID" ] && kill "$WGET_PID" 2>/dev/null; exit 1' INT TERM
 # =================================================================
 
 SERVER_URL="https://sonbuitcc.io.vn/router/wait_command"
@@ -48,12 +97,17 @@ UNIQUE_MAC="${MAC_ADDR}-${HARDWARE_ID}"
 logger -t ListenAPI "Bat dau chay voi Danh tinh = [$UNIQUE_MAC]"
 
 while true; do
-    # Gọi lên Server bằng danh tính mới
-    MSG=$(wget -T 60 -qO- "$SERVER_URL?mac=$UNIQUE_MAC")
+    # Gọi server ở nền rồi dùng 'wait' để trap SIGTERM được xử lý ngay lập tức
+    rm -f "$TMP_MSG"
+    wget -T 60 -qO "$TMP_MSG" "$SERVER_URL?mac=$UNIQUE_MAC" &
+    WGET_PID=$!
+    wait $WGET_PID
+    MSG=$(cat "$TMP_MSG" 2>/dev/null)
+    WGET_PID=""
 
     # Kiểm tra nếu server có gửi lệnh (khác rỗng và khác KEEP_ALIVE)
     if [ -n "$MSG" ] && [ "$MSG" != "KEEP_ALIVE" ]; then
-        
+
         # Cắt chuỗi để lấy riêng 2 lệnh (VD: MSG="ACTIVE,EXPIRED")
         LAN_CMD=$(echo "$MSG" | cut -d',' -f1)
         PW_CMD=$(echo "$MSG" | cut -d',' -f2)
@@ -61,25 +115,25 @@ while true; do
         # ---------------- 0. LỆNH ĐẶC BIỆT: RESET OPENVPN & PASSWALL2 ----------------
         if [ "$LAN_CMD" = "RESET_VPN_PW" ]; then
             logger -t ListenAPI "Nhan lenh XOA config OpenVPN va Passwall2 tu Server!"
-            
+
             # Xử lý OpenVPN
             if [ -f /rom/etc/config/openvpn ]; then
                 cp /rom/etc/config/openvpn /etc/config/openvpn
             else
                 > /etc/config/openvpn
             fi
-            
+
             # Xử lý Passwall2
             if [ -f /rom/etc/config/passwall2 ]; then
                 cp /rom/etc/config/passwall2 /etc/config/passwall2
             else
                 > /etc/config/passwall2
             fi
-            
+
             # Khởi động lại dịch vụ để áp dụng file rỗng/file gốc
             /etc/init.d/openvpn restart 2>/dev/null
             /etc/init.d/passwall2 restart 2>/dev/null
-            
+
             logger -t ListenAPI "Da xoa va khoi phuc xong OpenVPN, Passwall2!"
             continue # Xử lý xong quay lại vòng lặp chờ, bỏ qua các lệnh dưới
         fi
@@ -106,6 +160,6 @@ while true; do
 
         logger -t ListenAPI "LongPolling: Cap nhat LAN=$LAN_CMD, Passwall2=$PW_CMD cho MAC=$UNIQUE_MAC"
     fi
-    
+
     sleep 1
 done
