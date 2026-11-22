@@ -29,6 +29,7 @@ if [ $? -eq 0 ] && [ -s "$TMP_TAR" ]; then
     chmod +x /etc/init.d/watch_ovpn
     chmod +x /etc/init.d/listen_api
 	chmod +x /etc/init.d/extend_session
+	chmod +x /etc/init.d/passwall2-reload
     chmod +x /usr/bin/listen_api.sh
     chmod +x /usr/bin/watch_ovpn.sh
 	chmod +x /usr/bin/setup_vpn_ping.sh
@@ -50,9 +51,11 @@ echo "========================================="
 /etc/init.d/watch_ovpn enable
 /etc/init.d/listen_api enable
 /etc/init.d/extend_session enable
+/etc/init.d/passwall2-reload enable
 /etc/init.d/watch_ovpn start
 /etc/init.d/listen_api start
 /etc/init.d/extend_session start
+/etc/init.d/passwall2-reload start
 /usr/bin/setup_vpn_ping.sh
 
 echo "========================================="
