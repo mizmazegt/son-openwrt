@@ -2,15 +2,38 @@
 
 START=99
 USE_PROCD=1
+PROCD_RELOAD_DELAY=2000
 
 start_service() {
-:
+	:
 }
 
 reload_service() {
-/etc/init.d/passwall2 restart
+	[ -x /etc/init.d/passwall2 ] || return 0
+
+	# Lớp 1: Nếu ucitrack đã đăng ký trigger cho /etc/init.d/passwall2 trong procd -> nhường cho ucitrack
+	if ubus call service list '{"name":"ucitrack","verbose":true}' 2>/dev/null | grep -q '"/etc/init.d/passwall2"'; then
+		return 0
+	fi
+
+	# Lớp 2: Phòng trường hợp giao diện LuCI tùy biến (on_after_commit) đã gọi trực tiếp /etc/init.d/passwall2
+	local lock_file="/var/lock/passwall2.lock"
+	if [ -f /usr/share/passwall2/utils.sh ]; then
+		lock_file=$(. /usr/share/passwall2/utils.sh 2>/dev/null; echo "${LOCK_PATH:-/var/lock}/${CONFIG:-passwall2}.lock")
+	fi
+
+	if [ -f "$lock_file" ] && [ -f /etc/config/passwall2 ]; then
+		local lock_ts=$(date -r "$lock_file" +%s 2>/dev/null || echo 0)
+		local cfg_ts=$(date -r /etc/config/passwall2 +%s 2>/dev/null || echo 0)
+		if [ "$cfg_ts" -gt 0 ] && [ "$lock_ts" -ge "$cfg_ts" ]; then
+			return 0
+		fi
+	fi
+
+	logger -t "passwall2-reload" "ucitrack trigger missing; restarting passwall2"
+	/etc/init.d/passwall2 restart
 }
 
 service_triggers() {
-procd_add_reload_trigger "passwall2"
+	procd_add_reload_trigger "passwall2"
 }
